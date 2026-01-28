@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 钉钉 Stream 连接管理
  * 
  * 使用 dingtalk-stream SDK 建立持久连接接收消息
@@ -27,7 +27,7 @@ export interface MonitorDingtalkOpts {
     log?: (msg: string) => void;
     error?: (msg: string) => void;
   };
-  /** 中止信号，用于优雅关闭 */
+  /** 中断信号，用于优雅关闭 */
   abortSignal?: AbortSignal;
   /** 账户 ID */
   accountId?: string;
@@ -35,6 +35,75 @@ export interface MonitorDingtalkOpts {
 
 /** 当前活跃的 Stream 客户端 */
 let currentClient: DWClient | null = null;
+
+/** 当前活跃连接的账户 ID */
+let currentAccountId: string | null = null;
+
+/** 当前 Monitor Promise */
+let currentPromise: Promise<void> | null = null;
+
+/** 停止当前 Monitor */
+let currentStop: (() => void) | null = null;
+
+/**
+ * 消息去重缓存
+ * 使用 Set 存储已处理的消息 ID，防止重复处理
+ */
+const processedMessageIds = new Set<string>();
+
+/** 去重缓存最大容量 */
+const DEDUP_CACHE_MAX_SIZE = 10000;
+
+/** 去重缓存过期时间（毫秒）- 5 分钟 */
+const DEDUP_CACHE_TTL = 5 * 60 * 1000;
+
+/** 去重缓存条目（带时间戳） */
+const processedMessageTimestamps = new Map<string, number>();
+
+/**
+ * 清理过期的去重缓存条目
+ */
+function cleanupDedupCache(): void {
+  const now = Date.now();
+  for (const [messageId, timestamp] of processedMessageTimestamps) {
+    if (now - timestamp > DEDUP_CACHE_TTL) {
+      processedMessageIds.delete(messageId);
+      processedMessageTimestamps.delete(messageId);
+    }
+  }
+}
+
+/**
+ * 检查消息是否已处理（去重）
+ *
+ * @param messageId 消息 ID
+ * @returns 是否已处理过
+ */
+function isMessageProcessed(messageId: string): boolean {
+  return processedMessageIds.has(messageId);
+}
+
+/**
+ * 标记消息为已处理
+ *
+ * @param messageId 消息 ID
+ */
+function markMessageProcessed(messageId: string): void {
+  // 如果缓存已满，先清理过期条目
+  if (processedMessageIds.size >= DEDUP_CACHE_MAX_SIZE) {
+    cleanupDedupCache();
+    // 如果清理后仍然超过容量，删除最旧的条目
+    if (processedMessageIds.size >= DEDUP_CACHE_MAX_SIZE) {
+      const oldestId = processedMessageTimestamps.keys().next().value;
+      if (oldestId) {
+        processedMessageIds.delete(oldestId);
+        processedMessageTimestamps.delete(oldestId);
+      }
+    }
+  }
+  processedMessageIds.add(messageId);
+  processedMessageTimestamps.set(messageId, Date.now());
+}
 
 /**
  * 启动钉钉 Stream 连接监控
@@ -54,13 +123,25 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
   const log = runtime?.log ?? console.log;
   const error = runtime?.error ?? console.error;
   
-  // 获取钉钉配置
+  // Single-account: only one active connection allowed.
+  if (currentClient) {
+    if (currentAccountId && currentAccountId !== accountId) {
+      throw new Error(`DingTalk already running for account ${currentAccountId}`);
+    }
+    log(`[dingtalk] existing connection for account ${accountId} is active, reusing monitor`);
+    if (currentPromise) {
+      return currentPromise;
+    }
+    throw new Error("DingTalk monitor state invalid: active client without promise");
+  }
+
+  // Get DingTalk config.
   const dingtalkCfg = config?.channels?.dingtalk;
   if (!dingtalkCfg) {
     throw new Error("DingTalk configuration not found");
   }
-  
-  // 创建 Stream 客户端
+
+  // Create Stream client.
   let client: DWClient;
   try {
     client = createDingtalkClientFromConfig(dingtalkCfg);
@@ -68,16 +149,22 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
     error(`[dingtalk] failed to create client: ${String(err)}`);
     throw err;
   }
-  
+
   currentClient = client;
-  
+  currentAccountId = accountId;
+
   log(`[dingtalk] starting Stream connection for account ${accountId}...`);
-  
-  return new Promise<void>((resolve, reject) => {
-    // 清理函数
+
+  currentPromise = new Promise<void>((resolve, reject) => {
+    let stopped = false;
+
+    // Cleanup state and disconnect the client.
     const cleanup = () => {
       if (currentClient === client) {
         currentClient = null;
+        currentAccountId = null;
+        currentStop = null;
+        currentPromise = null;
       }
       try {
         client.disconnect();
@@ -85,74 +172,109 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
         error(`[dingtalk] failed to disconnect client: ${String(err)}`);
       }
     };
-    
-    // 处理中止信号
-    const handleAbort = () => {
-      log("[dingtalk] abort signal received, stopping Stream client");
-      cleanup();
+
+    const finalizeResolve = () => {
+      if (stopped) return;
+      stopped = true;
       abortSignal?.removeEventListener("abort", handleAbort);
+      cleanup();
       resolve();
     };
-    
-    // 检查是否已经中止
-    if (abortSignal?.aborted) {
+
+    const finalizeReject = (err: unknown) => {
+      if (stopped) return;
+      stopped = true;
+      abortSignal?.removeEventListener("abort", handleAbort);
       cleanup();
-      resolve();
+      reject(err);
+    };
+
+    // Handle abort signal.
+    const handleAbort = () => {
+      log("[dingtalk] abort signal received, stopping Stream client");
+      finalizeResolve();
+    };
+
+    // Expose a stop hook for manual shutdown.
+    currentStop = () => {
+      log("[dingtalk] stop requested, stopping Stream client");
+      finalizeResolve();
+    };
+
+    // If already aborted, resolve immediately.
+    if (abortSignal?.aborted) {
+      finalizeResolve();
       return;
     }
-    
-    // 注册中止信号监听器
+
+    // Register abort handler.
     abortSignal?.addEventListener("abort", handleAbort, { once: true });
-    
+
     try {
-      // 注册 TOPIC_ROBOT 回调处理消息
-      client.registerCallbackListener(TOPIC_ROBOT, async (res) => {
+      // Register TOPIC_ROBOT callback.
+      client.registerCallbackListener(TOPIC_ROBOT, (res) => {
         try {
-          // 解析消息数据
+          // Parse message payload.
           const rawMessage = JSON.parse(res.data) as DingtalkRawMessage;
           if (res?.headers?.messageId) {
             rawMessage.streamMessageId = res.headers.messageId;
           }
-          
+
+          // Build dedupe key (prefer Stream message id).
+          const dedupeId = rawMessage.streamMessageId
+            ? `${accountId}:${rawMessage.streamMessageId}`
+            : `${accountId}:${rawMessage.conversationId}_${rawMessage.senderId}_${rawMessage.text?.content?.slice(0, 50) ?? rawMessage.msgtype}`;
+
+          // Skip if already processed.
+          if (isMessageProcessed(dedupeId)) {
+            log(`[dingtalk] duplicate message detected, skipping (id=${dedupeId.slice(0, 30)}...)`);
+            return EventAck.SUCCESS;
+          }
+
+          // Mark before processing to prevent concurrent duplicates.
+          markMessageProcessed(dedupeId);
+
           log(`[dingtalk] received message from ${rawMessage.senderId} (type=${rawMessage.msgtype})`);
-          
-          // 处理消息（使用全局 runtime，不再传递 getRuntime）
-          await handleDingtalkMessage({
+
+          // Process asynchronously; ACK immediately.
+          void handleDingtalkMessage({
             cfg: config,
             raw: rawMessage,
             accountId,
             log,
             error,
+          }).catch((err) => {
+            error(`[dingtalk] error handling message: ${String(err)}`);
           });
-          
-          // 返回成功确认
+
           return EventAck.SUCCESS;
         } catch (err) {
           error(`[dingtalk] error handling message: ${String(err)}`);
-          // 即使处理失败也返回成功，避免消息重试
           return EventAck.SUCCESS;
         }
       });
-      
-      // 启动 Stream 连接
+
+      // Start Stream connection.
       client.connect();
-      
+
       log("[dingtalk] Stream client connected");
     } catch (err) {
-      cleanup();
-      abortSignal?.removeEventListener("abort", handleAbort);
       error(`[dingtalk] failed to start Stream connection: ${String(err)}`);
-      reject(err);
+      finalizeReject(err);
     }
   });
+
+  return currentPromise;
 }
 
 /**
- * 停止钉钉 Stream 监控
- * 
- * 用于手动停止当前活跃的 Stream 连接
+ * 停止钉钉 Monitor
  */
 export function stopDingtalkMonitor(): void {
+  if (currentStop) {
+    currentStop();
+    return;
+  }
   if (currentClient) {
     try {
       currentClient.disconnect();
@@ -160,6 +282,9 @@ export function stopDingtalkMonitor(): void {
       console.error(`[dingtalk] failed to disconnect client: ${String(err)}`);
     } finally {
       currentClient = null;
+      currentAccountId = null;
+      currentPromise = null;
+      currentStop = null;
     }
   }
 }
@@ -173,4 +298,25 @@ export function stopDingtalkMonitor(): void {
  */
 export function isMonitorActive(): boolean {
   return currentClient !== null;
+}
+
+/**
+ * 获取当前活跃连接的账户 ID
+ * 
+ * 用于诊断和测试
+ * 
+ * @returns 当前账户 ID 或 null
+ */
+export function getCurrentAccountId(): string | null {
+  return currentAccountId;
+}
+
+/**
+ * 清除消息去重缓存
+ * 
+ * 用于测试或需要重置去重状态的场景
+ */
+export function clearDedupCache(): void {
+  processedMessageIds.clear();
+  processedMessageTimestamps.clear();
 }
