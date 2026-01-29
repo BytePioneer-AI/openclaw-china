@@ -56,7 +56,7 @@ export interface SendMediaParams {
 }
 
 /**
- * 检测媒体类型
+ * 检测媒体类型（基于文件名扩展名）
  *
  * @param fileName 文件名
  * @returns 媒体类型
@@ -83,6 +83,66 @@ export function detectMediaType(
 
   // 其他文件
   return "file";
+}
+
+/**
+ * 从 Content-Type 检测媒体类型
+ *
+ * @param contentType HTTP Content-Type 头
+ * @returns 媒体类型
+ */
+export function detectMediaTypeFromContentType(
+  contentType: string | null
+): "image" | "voice" | "video" | "file" {
+  if (!contentType) return "file";
+
+  const mime = contentType.split(";")[0].trim().toLowerCase();
+
+  // 图片类型
+  if (mime.startsWith("image/")) {
+    return "image";
+  }
+
+  // 音频类型
+  if (mime.startsWith("audio/")) {
+    return "voice";
+  }
+
+  // 视频类型
+  if (mime.startsWith("video/")) {
+    return "video";
+  }
+
+  return "file";
+}
+
+/**
+ * 从 Content-Type 推断文件扩展名
+ *
+ * @param contentType HTTP Content-Type 头
+ * @returns 文件扩展名（含点号）或空字符串
+ */
+function getExtensionFromContentType(contentType: string | null): string {
+  if (!contentType) return "";
+
+  const mime = contentType.split(";")[0].trim().toLowerCase();
+
+  const mimeToExt: Record<string, string> = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/ogg": ".ogg",
+    "audio/amr": ".amr",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/x-msvideo": ".avi",
+  };
+
+  return mimeToExt[mime] ?? "";
 }
 
 
@@ -224,6 +284,7 @@ export async function sendMediaDingtalk(
 
   let buffer: Buffer;
   let name: string;
+  let detectedMediaType: "image" | "voice" | "video" | "file" | undefined;
 
   if (mediaBuffer) {
     // 使用提供的 Buffer
@@ -253,9 +314,24 @@ export async function sendMediaDingtalk(
             `Failed to fetch media from URL: HTTP ${response.status}`
           );
         }
+
+        // 从 Content-Type 检测媒体类型
+        const contentType = response.headers.get("content-type");
+        detectedMediaType = detectMediaTypeFromContentType(contentType);
+
         buffer = Buffer.from(await response.arrayBuffer());
-        name =
-          fileName ?? (path.basename(new URL(mediaUrl).pathname) || "file");
+
+        // 构建文件名：优先使用提供的 fileName，否则从 URL 提取
+        let baseName = fileName ?? (path.basename(new URL(mediaUrl).pathname) || "file");
+
+        // 如果文件名没有扩展名，根据 Content-Type 添加
+        if (!path.extname(baseName) && contentType) {
+          const ext = getExtensionFromContentType(contentType);
+          if (ext) {
+            baseName = baseName + ext;
+          }
+        }
+        name = baseName;
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
           throw new Error(
@@ -271,8 +347,8 @@ export async function sendMediaDingtalk(
     throw new Error("Either mediaUrl or mediaBuffer must be provided");
   }
 
-  // 检测媒体类型
-  const mediaType = detectMediaType(name);
+  // 检测媒体类型：优先使用从 Content-Type 检测到的类型，否则从文件名推断
+  const mediaType = detectedMediaType ?? detectMediaType(name);
 
   // 上传媒体
   const uploadResult = await uploadMediaDingtalk({

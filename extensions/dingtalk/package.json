@@ -1,6 +1,6 @@
 {
   "name": "@moltbot-china/dingtalk",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Moltbot DingTalk channel plugin",
   "license": "MIT",

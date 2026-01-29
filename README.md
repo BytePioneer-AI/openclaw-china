@@ -1,23 +1,31 @@
-# moltbot-china
+# Moltbot China
 
-中国 IM 平台 Moltbot 扩展插件集合。
+![license](https://img.shields.io/badge/license-MIT-green.svg) ![status](https://img.shields.io/badge/status-active-success.svg)
 
-⭐ 如果这个项目对你有帮助，请给个 Star 支持一下~
+面向中国 IM 平台的 Moltbot 扩展插件集合
+
+⭐ **如果这个项目对你有帮助，请给个 Star 支持一下~** ⭐
+
+[快速开始](#快速开始)
+
+| 平台 | 状态 | 插件 |
+|------|:----:|------|
+| 钉钉 | ✅ 可用 | `@moltbot-china/dingtalk` |
+| 飞书 | 🚧 开发中 | - |
+| 企业微信 | 🚧 开发中 | - |
+| QQ 机器人 | 🚧 开发中 | - |
 
 ## 演示
 
 ![钉钉机器人演示](doc/images/dingtalk-demo_2.gif)
 
-## 支持平台
+![钉钉机器人演示](doc/images/dingtalk-demo_3.png)
 
-| 平台 | 状态 | 插件 |
-|------|:----:|------|
-| 钉钉 | ✅ 可用 | `@moltbot-china/dingtalk` |
-| 飞书 | 🚧 开发中 |  |
-| 企业微信 | 🚧 开发中 |  |
-| QQ机器人 | 🚧 开发中 |  |
 
-## 安装
+
+## 快速开始
+
+### 安装
 
 ```bash
 # Clawdbot
@@ -28,12 +36,13 @@ moltbot plugins install @moltbot-china/dingtalk
 ```
 
 
-## 钉钉配置
 
-> 📖 **[钉钉企业注册指南](doc/guides/dingtalk/configuration.md)** — 无需任何材料，最快 5 分钟完成配置
+### 钉钉配置
+
+> 📖 **[钉钉企业注册指南](doc/guides/dingtalk/configuration.md)** — 无需材料，通常 5 分钟内完成配置
 
 
-### 配置
+#### 配置
 
 编辑 `~/.clawdbot/clawdbot.json`（或 `~/.moltbot/moltbot.json`），添加钉钉渠道配置：
 
@@ -54,7 +63,7 @@ moltbot plugins install @moltbot-china/dingtalk
 }
 ```
 
-### 4. 重启 Gateway
+#### 重启 Gateway
 
 ```bash
 clawdbot gateway restart
@@ -84,7 +93,7 @@ moltbot gateway restart
 |----|------|
 | `main` | 所有用户共享同一会话（不推荐） |
 | `per-peer` | **推荐**，按用户 ID 隔离 |
-| `per-channel-peer` | 按渠道+用户隔离 |
+| `per-channel-peer` | 按渠道 + 用户隔离 |
 
 
 
@@ -107,7 +116,7 @@ clawdbot plugins install -l ./extensions/dingtalk
 moltbot plugins install -l ./extensions/dingtalk
 ```
 
-配置中添加:
+配置中添加：
 
 ```
   "plugins": {
