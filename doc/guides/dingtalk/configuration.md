@@ -53,3 +53,22 @@
 ### 4. 获取 clientId / clientSecret
 
 ![Credentials](../../images/dingtalk_credentials.png)
+
+### 5. 启用 AI Card 流式输出（可选）
+
+在 OpenClaw 配置中显式开启：
+
+```json
+{
+  "channels": {
+    "dingtalk": {
+      "enableAICard": true
+    }
+  }
+}
+```
+
+说明：
+- 设置 `"enableAICard": true` 后，钉钉将使用 AI Card 流式输出。
+- 需要在钉钉应用权限中开通 `Card.Instance.Write` 和 `Card.Streaming.Write`。
+- 如果未开启权限或不启用 AI Card，也不影响正常对话；系统会回退到普通消息，并在日志中给出权限申请指引链接。
