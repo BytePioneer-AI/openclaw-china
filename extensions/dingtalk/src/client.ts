@@ -43,9 +43,12 @@ export function createDingtalkClient(opts: DingtalkClientOptions): DWClient {
   }
 
   // 创建新客户端
+  // keepAlive: 启用客户端心跳检测，每 8 秒发送 ping，
+  // 如果 pong 未返回则强制断开并触发自动重连，防止连接"假死"
   const client = new DWClient({
     clientId: opts.clientId,
     clientSecret: opts.clientSecret,
+    keepAlive: true,
   });
 
   // 更新缓存
