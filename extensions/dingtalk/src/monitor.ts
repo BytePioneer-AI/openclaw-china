@@ -148,140 +148,155 @@ export async function monitorDingtalkProvider(opts: MonitorDingtalkOpts = {}): P
 
   await ensureGatewayHttpEnabled({ dingtalkCfg, logger });
 
-  // Create Stream client.
-  let client: DWClient;
-  try {
-    client = createDingtalkClientFromConfig(dingtalkCfg);
-  } catch (err) {
-    logger.error(`failed to create client: ${String(err)}`);
-    throw err;
-  }
-
-  currentClient = client;
   currentAccountId = accountId;
 
-  logger.info(`starting Stream connection for account ${accountId}...`);
+  // 使用内部重连循环
+  currentPromise = (async () => {
+    let retryCount = 0;
+    const maxRetryDelay = 30000;
 
-  currentPromise = new Promise<void>((resolve, reject) => {
-    let stopped = false;
+    while (true) {
+      if (abortSignal?.aborted) break;
 
-    // Cleanup state and disconnect the client.
-    const cleanup = () => {
-      if (currentClient === client) {
-        currentClient = null;
-        currentAccountId = null;
-        currentStop = null;
-        currentPromise = null;
-      }
       try {
-        client.disconnect();
-      } catch (err) {
-        logger.error(`failed to disconnect client: ${String(err)}`);
-      }
-    };
+        await new Promise<void>((resolve, reject) => {
+          let stopped = false;
+          let healthCheckTimer: NodeJS.Timeout | null = null;
+          let lastActivityAt = Date.now();
 
-    const finalizeResolve = () => {
-      if (stopped) return;
-      stopped = true;
-      abortSignal?.removeEventListener("abort", handleAbort);
-      cleanup();
-      resolve();
-    };
+          // Create Stream client.
+          const client = createDingtalkClientFromConfig(dingtalkCfg);
+          currentClient = client;
 
-    const finalizeReject = (err: unknown) => {
-      if (stopped) return;
-      stopped = true;
-      abortSignal?.removeEventListener("abort", handleAbort);
-      cleanup();
-      reject(err);
-    };
-
-    // Handle abort signal.
-    const handleAbort = () => {
-      logger.info("abort signal received, stopping Stream client");
-      finalizeResolve();
-    };
-
-    // Expose a stop hook for manual shutdown.
-    currentStop = () => {
-      logger.info("stop requested, stopping Stream client");
-      finalizeResolve();
-    };
-
-    // If already aborted, resolve immediately.
-    if (abortSignal?.aborted) {
-      finalizeResolve();
-      return;
-    }
-
-    // Register abort handler.
-    abortSignal?.addEventListener("abort", handleAbort, { once: true });
-
-    try {
-      // Register TOPIC_ROBOT callback.
-      client.registerCallbackListener(TOPIC_ROBOT, (res) => {
-        const streamMessageId = res?.headers?.messageId;
-        
-        // 立即显式 ACK，防止钉钉重发消息
-        if (streamMessageId) {
-          try {
-            client.socketCallBackResponse(streamMessageId, { success: true });
-          } catch (ackErr) {
-            logger.error(`failed to ACK message ${streamMessageId}: ${String(ackErr)}`);
-          }
-        }
-        
-        try {
-          // Parse message payload.
-          const rawMessage = JSON.parse(res.data) as DingtalkRawMessage;
-          if (streamMessageId) {
-            rawMessage.streamMessageId = streamMessageId;
-          }
-
-          // 关键业务日志：收到消息
-          // content 可能是字符串或对象，需要处理
-          let contentText = "";
-          if (rawMessage.msgtype === "text" && rawMessage.text?.content) {
-            contentText = rawMessage.text.content;
-          } else if (rawMessage.content) {
-            const contentObj = typeof rawMessage.content === "string"
-              ? (() => { try { return JSON.parse(rawMessage.content); } catch { return null; } })()
-              : rawMessage.content;
-            if (contentObj && typeof contentObj === "object" && "recognition" in contentObj && typeof contentObj.recognition === "string") {
-              contentText = contentObj.recognition;
+          const cleanup = () => {
+            if (healthCheckTimer) {
+              clearInterval(healthCheckTimer);
+              healthCheckTimer = null;
             }
+            if (currentClient === client) {
+              currentClient = null;
+              currentStop = null;
+            }
+            try {
+              client.disconnect();
+            } catch (err) {
+              logger.error(`failed to disconnect client: ${String(err)}`);
+            }
+          };
+
+          const finalizeResolve = () => {
+            if (stopped) return;
+            stopped = true;
+            abortSignal?.removeEventListener("abort", handleAbort);
+            cleanup();
+            resolve();
+          };
+
+          const finalizeReject = (err: unknown) => {
+            if (stopped) return;
+            stopped = true;
+            abortSignal?.removeEventListener("abort", handleAbort);
+            cleanup();
+            reject(err);
+          };
+
+          const handleAbort = () => {
+            logger.info("abort signal received, stopping Stream client");
+            finalizeResolve();
+          };
+
+          currentStop = () => {
+            logger.info("stop requested, stopping Stream client");
+            finalizeResolve();
+          };
+
+          abortSignal?.addEventListener("abort", handleAbort, { once: true });
+
+          healthCheckTimer = setInterval(() => {
+            const idleTime = Date.now() - lastActivityAt;
+            if (idleTime > 90000) {
+              logger.error(`Stream connection idle for ${Math.round(idleTime / 1000)}s, forcing reconnect...`);
+              finalizeReject(new Error("Stream connection hung (idle timeout)"));
+            }
+          }, 30000);
+
+          try {
+            client.registerCallbackListener(TOPIC_ROBOT, (res) => {
+              lastActivityAt = Date.now();
+              const streamMessageId = res?.headers?.messageId;
+              if (streamMessageId) {
+                try {
+                  client.socketCallBackResponse(streamMessageId, { success: true });
+                } catch (ackErr) {
+                  logger.error(`failed to ACK message ${streamMessageId}: ${String(ackErr)}`);
+                }
+              }
+              try {
+                const rawMessage = JSON.parse(res.data) as DingtalkRawMessage;
+                if (streamMessageId) {
+                  rawMessage.streamMessageId = streamMessageId;
+                }
+                let contentText = "";
+                if (rawMessage.msgtype === "text" && rawMessage.text?.content) {
+                  contentText = rawMessage.text.content;
+                } else if (rawMessage.content) {
+                  const contentObj = typeof rawMessage.content === "string"
+                    ? (() => { try { return JSON.parse(rawMessage.content); } catch { return null; } })()
+                    : rawMessage.content;
+                  if (contentObj && typeof contentObj === "object" && "recognition" in contentObj && typeof contentObj.recognition === "string") {
+                    contentText = contentObj.recognition;
+                  }
+                }
+                const contentTrimmed = contentText.trim();
+                const senderName = rawMessage.senderNick ?? rawMessage.senderId;
+                const textPreview = contentTrimmed.slice(0, 50);
+                logger.info(`Inbound: from=${senderName} text="${textPreview}${contentTrimmed.length > 50 ? "..." : ""}"`);
+                void handleDingtalkMessage({
+                  cfg: config,
+                  raw: rawMessage,
+                  accountId,
+                  log: (msg: string) => logger.info(msg.replace(/^\[dingtalk\]\s*/, "")),
+                  error: (msg: string) => logger.error(msg.replace(/^\[dingtalk\]\s*/, "")),
+                  enableAICard: dingtalkCfg?.enableAICard ?? true,
+                }).catch((err) => {
+                  logger.error(`error handling message: ${String(err)}`);
+                });
+              } catch (err) {
+                logger.error(`error parsing message: ${String(err)}`);
+              }
+            });
+
+            client.connect();
+            logger.info("Stream client connected");
+            retryCount = 0; // 重置重试计数
+          } catch (err) {
+            logger.error(`failed to start Stream connection: ${String(err)}`);
+            finalizeReject(err);
           }
-          const contentTrimmed = contentText.trim();
-          const senderName = rawMessage.senderNick ?? rawMessage.senderId;
-          const textPreview = contentTrimmed.slice(0, 50);
-          logger.info(`Inbound: from=${senderName} text="${textPreview}${contentTrimmed.length > 50 ? "..." : ""}"`);
-          logger.debug(`streamId=${streamMessageId ?? "none"} convo=${rawMessage.conversationId}`);
+        });
 
-          // 异步处理消息（ACK 已在前面发送）
-          void handleDingtalkMessage({
-            cfg: config,
-            raw: rawMessage,
-            accountId,
-            log: (msg: string) => logger.info(msg.replace(/^\[dingtalk\]\s*/, "")),
-            error: (msg: string) => logger.error(msg.replace(/^\[dingtalk\]\s*/, "")),
-            enableAICard: dingtalkCfg?.enableAICard ?? true,
-          }).catch((err) => {
-            logger.error(`error handling message: ${String(err)}`);
-          });
-        } catch (err) {
-          logger.error(`error parsing message: ${String(err)}`);
-        }
-      });
+        // 如果是正常 resolve (finalizeResolve)，说明是主动停止，跳出循环
+        break;
+      } catch (err) {
+        if (abortSignal?.aborted) break;
+        
+        retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), maxRetryDelay);
+        logger.warn(`Stream connection lost: ${String(err)}. Retrying in ${delay / 1000}s... (retry #${retryCount})`);
+        
+        // 清除缓存，确保下次重连使用新实例
+        const { clearClientCache } = await import("./client.js");
+        clearClientCache();
 
-      // Start Stream connection.
-      client.connect();
-
-      logger.info("Stream client connected");
-    } catch (err) {
-      logger.error(`failed to start Stream connection: ${String(err)}`);
-      finalizeReject(err);
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
-  });
+    
+    currentClient = null;
+    currentAccountId = null;
+    currentStop = null;
+    currentPromise = null;
+  })();
 
   return currentPromise;
 }
