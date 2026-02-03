@@ -19,9 +19,13 @@ import {
   resolveGroupAllowFrom,
   resolveGroupPolicy,
   resolveRequireMention,
+  resolveInboundMediaDir,
+  resolveInboundMediaEnabled,
+  resolveInboundMediaKeepDays,
+  resolveInboundMediaMaxBytes,
   type PluginConfig,
 } from "./config.js";
-import { sendWecomAppMessage, downloadAndSendImage } from "./api.js";
+import { sendWecomAppMessage, downloadAndSendImage, downloadWecomMediaToFile } from "./api.js";
 
 export type WecomAppDispatchHooks = {
   onChunk: (text: string) => void;
@@ -81,6 +85,144 @@ export function extractWecomAppContent(msg: WecomAppInboundMessage): string {
   return msgtype ? `[${msgtype}]` : "";
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inbound media: save to local and inject into text
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function maybePruneInboundMedia(dir: string, keepDays: number): Promise<void> {
+  // Very lightweight prune: remove dated dirs older than keepDays
+  // Best-effort only; never throw.
+  try {
+    if (keepDays <= 0) return;
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const name = ent.name;
+      // expect YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(name)) continue;
+      const ts = Date.parse(`${name}T00:00:00Z`);
+      if (!Number.isFinite(ts)) continue;
+      if (ts < cutoff) {
+        await fs.rm(path.join(dir, name), { recursive: true, force: true });
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export async function enrichInboundContentWithMedia(params: {
+  cfg: PluginConfig;
+  account: ResolvedWecomAppAccount;
+  msg: WecomAppInboundMessage;
+}): Promise<{ text: string; mediaPaths: string[] }> {
+  const { account, msg } = params;
+  const msgtype = String(msg.msgtype ?? msg.MsgType ?? "").toLowerCase();
+
+  const accountConfig = account?.config ?? {};
+  const enabled = resolveInboundMediaEnabled(accountConfig);
+  const dir = resolveInboundMediaDir(accountConfig);
+  const maxBytes = resolveInboundMediaMaxBytes(accountConfig);
+  const keepDays = resolveInboundMediaKeepDays(accountConfig);
+
+  const mediaPaths: string[] = [];
+
+  if (!enabled) {
+    return { text: extractWecomAppContent(msg), mediaPaths };
+  }
+
+  // best-effort prune
+  await maybePruneInboundMedia(dir, keepDays);
+
+  // image
+  if (msgtype === "image") {
+    const mediaId = String((msg as { MediaId?: string }).MediaId ?? "").trim();
+    if (mediaId) {
+      const saved = await downloadWecomMediaToFile(account, mediaId, { dir, maxBytes, prefix: "img" });
+      if (saved.ok && saved.path) {
+        mediaPaths.push(saved.path);
+        return { text: `[image] saved:${saved.path}`, mediaPaths };
+      }
+      // fallback to original text if failed
+      return { text: `[image] (save failed) ${saved.error ?? ""}`.trim(), mediaPaths };
+    }
+
+    // fallback to url-based download when no media_id is provided
+    const url = String((msg as { image?: { url?: string }; PicUrl?: string }).image?.url ?? (msg as { PicUrl?: string }).PicUrl ?? "").trim();
+    if (url) {
+      try {
+        const saved = await downloadWecomMediaToFile(account, url, { dir, maxBytes, prefix: "img" });
+        if (saved.ok && saved.path) {
+          mediaPaths.push(saved.path);
+          return { text: `[image] saved:${saved.path}`, mediaPaths };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return { text: extractWecomAppContent(msg), mediaPaths };
+  }
+
+  // file (some wecom variants may carry MediaId, but types currently don't)
+  if (msgtype === "file") {
+    const mediaId = String((msg as { MediaId?: string; mediaid?: string }).MediaId ?? (msg as { mediaid?: string }).mediaid ?? "").trim();
+    if (mediaId) {
+      const saved = await downloadWecomMediaToFile(account, mediaId, { dir, maxBytes, prefix: "file" });
+      if (saved.ok && saved.path) {
+        mediaPaths.push(saved.path);
+        return { text: `[file] saved:${saved.path}`, mediaPaths };
+      }
+      return { text: `[file] (save failed) ${saved.error ?? ""}`.trim(), mediaPaths };
+    }
+    return { text: extractWecomAppContent(msg), mediaPaths };
+  }
+
+  // mixed: try to persist image items when present
+  if (msgtype === "mixed") {
+    const items = (msg as { mixed?: { msg_item?: unknown } }).mixed?.msg_item;
+    if (!Array.isArray(items)) return { text: extractWecomAppContent(msg), mediaPaths };
+
+    const parts: string[] = [];
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const typed = item as any;
+      const t = String(typed.msgtype ?? "").toLowerCase();
+      if (t === "text") {
+        const c = String(typed.text?.content ?? "").trim();
+        if (c) parts.push(c);
+        continue;
+      }
+      if (t === "image") {
+        const mediaId = String(typed.image?.media_id ?? typed.MediaId ?? typed.media_id ?? "").trim();
+        if (mediaId) {
+          const saved = await downloadWecomMediaToFile(account, mediaId, { dir, maxBytes, prefix: "img" });
+          if (saved.ok && saved.path) {
+            mediaPaths.push(saved.path);
+            parts.push(`[image] saved:${saved.path}`);
+          } else {
+            const url = String(typed.image?.url ?? "").trim();
+            parts.push(url ? `[image] ${url}` : "[image]");
+          }
+        } else {
+          const url = String(typed.image?.url ?? "").trim();
+          parts.push(url ? `[image] ${url}` : "[image]");
+        }
+        continue;
+      }
+      if (t) parts.push(`[${t}]`);
+    }
+
+    const text = parts.filter(Boolean).join("\n") || "[mixed]";
+    return { text, mediaPaths };
+  }
+
+  return { text: extractWecomAppContent(msg), mediaPaths };
+}
+
 function resolveSenderId(msg: WecomAppInboundMessage): string {
   const userid = msg.from?.userid?.trim() ?? (msg as { FromUserName?: string }).FromUserName?.trim();
   return userid || "unknown";
@@ -97,8 +239,18 @@ function resolveChatId(msg: WecomAppInboundMessage, senderId: string, chatType: 
   return senderId;
 }
 
-function buildInboundBody(msg: WecomAppInboundMessage): string {
-  return extractWecomAppContent(msg);
+async function buildInboundBody(params: {
+  cfg: PluginConfig;
+  account: ResolvedWecomAppAccount;
+  msg: WecomAppInboundMessage;
+}): Promise<string> {
+  // Prefer enriched body (save inbound media to local) when possible.
+  const enriched = await enrichInboundContentWithMedia({
+    cfg: params.cfg,
+    account: params.account,
+    msg: params.msg,
+  });
+  return enriched.text;
 }
 
 /**
@@ -174,7 +326,7 @@ export async function dispatchWecomAppMessage(params: {
     peer: { kind: chatType === "group" ? "group" : "dm", id: chatId },
   });
 
-  const rawBody = buildInboundBody(msg);
+  const rawBody = await buildInboundBody({ cfg: safeCfg, account, msg });
   const fromLabel = chatType === "group" ? `group:${chatId}` : `user:${senderId}`;
 
   const storePath = channel.session?.resolveStorePath?.(safeCfg.session?.store, {

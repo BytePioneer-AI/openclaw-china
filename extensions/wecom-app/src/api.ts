@@ -4,6 +4,9 @@
  * 提供 Access Token 缓存和主动发送消息能力
  */
 import type { ResolvedWecomAppAccount, WecomAppSendTarget, AccessTokenCacheEntry } from "./types.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { basename, join, extname } from "node:path";
+
 
 /** Access Token 缓存 (key: corpId:agentId) */
 const accessTokenCache = new Map<string, AccessTokenCacheEntry>();
@@ -165,6 +168,156 @@ export type SendMessageResult = {
   invalidtag?: string;
   msgid?: string;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inbound media download (media_id -> local file)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SavedInboundMedia = {
+  ok: boolean;
+  path?: string;
+  mimeType?: string;
+  size?: number;
+  filename?: string;
+  error?: string;
+};
+
+const MIME_EXT_MAP: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "image/bmp": ".bmp",
+  "application/pdf": ".pdf",
+  "text/plain": ".txt",
+};
+
+function pickExtFromMime(mimeType?: string): string {
+  const t = (mimeType ?? "").split(";")[0]?.trim().toLowerCase();
+  return (t && MIME_EXT_MAP[t]) || "";
+}
+
+function parseContentDispositionFilename(headerValue?: string | null): string | undefined {
+  const v = String(headerValue ?? "");
+  if (!v) return undefined;
+
+  // filename*=UTF-8''xxx
+  const m1 = v.match(/filename\*=UTF-8''([^;]+)/i);
+  if (m1?.[1]) {
+    try {
+      return decodeURIComponent(m1[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return m1[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+
+  const m2 = v.match(/filename=([^;]+)/i);
+  if (m2?.[1]) return m2[1].trim().replace(/^"|"$/g, "");
+
+  return undefined;
+}
+
+function todayDirName(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * 下载企业微信 media_id 到本地文件
+ * - 优先用于入站 image/file 的落盘
+ */
+export async function downloadWecomMediaToFile(
+  account: ResolvedWecomAppAccount,
+  mediaId: string,
+  opts: { dir: string; maxBytes: number; prefix?: string }
+): Promise<SavedInboundMedia> {
+  if (!account.canSendActive) {
+    return { ok: false, error: "Account not configured for active sending (missing corpId/corpSecret/agentId)" };
+  }
+
+  const raw = String(mediaId ?? "").trim();
+  if (!raw) return { ok: false, error: "mediaId/url is empty" };
+
+  // Support both WeCom media_id and direct http(s) url.
+  // - media_id: use qyapi media/get
+  // - url: download directly
+  const isHttp = raw.startsWith("http://") || raw.startsWith("https://");
+
+  let resp: Response;
+  let contentType: string | undefined;
+  let filenameFromHeader: string | undefined;
+
+  if (isHttp) {
+    resp = await fetch(raw);
+    if (!resp.ok) {
+      return { ok: false, error: `download failed: HTTP ${resp.status}` };
+    }
+    contentType = resp.headers.get("content-type") || undefined;
+    filenameFromHeader = undefined;
+  } else {
+    const safeMediaId = raw;
+    const token = await getAccessToken(account);
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/media/get?access_token=${encodeURIComponent(token)}&media_id=${encodeURIComponent(safeMediaId)}`;
+
+    resp = await fetch(url);
+    if (!resp.ok) {
+      return { ok: false, error: `media/get failed: HTTP ${resp.status}` };
+    }
+
+    contentType = resp.headers.get("content-type") || undefined;
+    const cd = resp.headers.get("content-disposition");
+    filenameFromHeader = parseContentDispositionFilename(cd);
+
+    // 企业微信失败时可能返回 JSON（errcode/errmsg）
+    if ((contentType ?? "").includes("application/json")) {
+      try {
+        const j = (await resp.json()) as { errcode?: number; errmsg?: string };
+        return { ok: false, error: `media/get returned json: errcode=${j?.errcode} errmsg=${j?.errmsg}` };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+  }
+
+  // 读二进制并限制大小
+  const arrayBuffer = await resp.arrayBuffer();
+  const buf = Buffer.from(arrayBuffer);
+  if (opts.maxBytes > 0 && buf.length > opts.maxBytes) {
+    return { ok: false, error: `media too large: ${buf.length} bytes (limit ${opts.maxBytes})` };
+  }
+
+  const baseDir = (opts.dir ?? "").trim();
+  if (!baseDir) return { ok: false, error: "opts.dir is empty" };
+
+  const datedDir = join(baseDir, todayDirName());
+  await mkdir(datedDir, { recursive: true });
+
+  const prefix = (opts.prefix ?? "media").trim() || "media";
+  const timestamp = Date.now();
+
+  const extFromMime = pickExtFromMime(contentType);
+  const extFromName = filenameFromHeader ? extname(filenameFromHeader) : (isHttp ? extname(raw.split("?")[0] || "") : "");
+  const ext = extFromName || extFromMime || ".bin";
+
+  const idPart = isHttp ? "url" : raw;
+  const filename = filenameFromHeader ? basename(filenameFromHeader) : `${prefix}_${timestamp}_${idPart}${ext}`;
+  const outPath = join(datedDir, filenameFromHeader ? filename : `${prefix}_${timestamp}_${idPart}${ext}`);
+
+  await writeFile(outPath, buf);
+
+  return {
+    ok: true,
+    path: outPath,
+    mimeType: contentType,
+    size: buf.length,
+    filename,
+  };
+}
+
 
 /**
  * 发送企业微信应用消息

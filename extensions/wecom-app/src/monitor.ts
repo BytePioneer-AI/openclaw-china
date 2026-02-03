@@ -262,6 +262,7 @@ function parseWecomAppPlainMessage(raw: string): WecomAppInboundMessage {
   if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
     const xmlData = parseXmlBody(trimmed);
     // 映射 XML 字段到标准字段
+    // NOTE: 对于图片/文件等媒体消息，XML 会包含 PicUrl/MediaId 等字段。
     return {
       msgtype: xmlData.MsgType,
       MsgType: xmlData.MsgType,
@@ -274,6 +275,10 @@ function parseWecomAppPlainMessage(raw: string): WecomAppInboundMessage {
       ToUserName: xmlData.ToUserName,
       CreateTime: xmlData.CreateTime ? Number(xmlData.CreateTime) : undefined,
       AgentID: xmlData.AgentID ? Number(xmlData.AgentID) : undefined,
+      // image fields
+      PicUrl: xmlData.PicUrl,
+      MediaId: xmlData.MediaId,
+      image: xmlData.PicUrl ? { url: xmlData.PicUrl } : undefined,
       // 事件类型
       Event: xmlData.Event,
     } as WecomAppInboundMessage;
@@ -434,7 +439,7 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
     msgTimestamp = xmlData.TimeStamp ?? timestamp;
     msgNonce = xmlData.Nonce ?? nonce;
     // 调试日志：仅在需要排查问题时启用
-    // logger.debug(`parsed XML: encrypt=${encrypt.slice(0, 20)}..., sig=${msgSignature.slice(0, 10)}...`);
+    logger.info(`[wecom-app] inbound xml parsed: hasEncrypt=${Boolean(encrypt)}, msg_signature=${msgSignature ? "yes" : "no"}`);
   } else {
     // JSON 格式 - 兼容旧格式
     try {
@@ -491,6 +496,14 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
   }
 
   const msg = parseWecomAppPlainMessage(plain);
+  try {
+    const mt = String((msg as any)?.msgtype ?? (msg as any)?.MsgType ?? "");
+    const mid = String((msg as any)?.MediaId ?? (msg as any)?.media_id ?? (msg as any)?.image?.media_id ?? "");
+    const pic = String((msg as any)?.PicUrl ?? (msg as any)?.image?.url ?? "");
+    logger.info(`[wecom-app] inbound msg parsed: msgtype=${mt} MediaId=${mid ? "yes" : "no"} PicUrl=${pic ? "yes" : "no"}`);
+  } catch {
+    // ignore
+  }
   target.statusSink?.({ lastInboundAt: Date.now() });
 
   const msgtype = String(msg.msgtype ?? msg.MsgType ?? "").toLowerCase();

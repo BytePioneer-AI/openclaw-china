@@ -25,6 +25,17 @@ const WecomAppAccountSchema = z.object({
   corpId: z.string().optional(),
   corpSecret: z.string().optional(),
   agentId: z.number().optional(),
+
+  // 入站媒体（图片/文件）落盘设置
+  inboundMedia: z
+    .object({
+      enabled: z.boolean().optional(),
+      dir: z.string().optional(),
+      maxBytes: z.number().optional(),
+      keepDays: z.number().optional(),
+    })
+    .optional(),
+
   // 其他字段
   welcomeText: z.string().optional(),
   dmPolicy: z.enum(["open", "pairing", "allowlist", "disabled"]).optional(),
@@ -55,6 +66,16 @@ export const WecomAppConfigJsonSchema = {
       corpId: { type: "string" },
       corpSecret: { type: "string" },
       agentId: { type: "number" },
+      inboundMedia: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          enabled: { type: "boolean" },
+          dir: { type: "string" },
+          maxBytes: { type: "number" },
+          keepDays: { type: "number" },
+        },
+      },
       welcomeText: { type: "string" },
       dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
       allowFrom: { type: "array", items: { type: "string" } },
@@ -77,6 +98,16 @@ export const WecomAppConfigJsonSchema = {
             corpId: { type: "string" },
             corpSecret: { type: "string" },
             agentId: { type: "number" },
+            inboundMedia: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                enabled: { type: "boolean" },
+                dir: { type: "string" },
+                maxBytes: { type: "number" },
+                keepDays: { type: "number" },
+              },
+            },
             welcomeText: { type: "string" },
             dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
             allowFrom: { type: "array", items: { type: "string" } },
@@ -217,4 +248,32 @@ export function resolveAllowFrom(config: WecomAppAccountConfig): string[] {
 
 export function resolveGroupAllowFrom(config: WecomAppAccountConfig): string[] {
   return config.groupAllowFrom ?? [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inbound media settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_INBOUND_MEDIA_DIR = "/root/.openclaw/media/wecom-app/inbound";
+const DEFAULT_INBOUND_MEDIA_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const DEFAULT_INBOUND_MEDIA_KEEP_DAYS = 7;
+
+export function resolveInboundMediaEnabled(config: WecomAppAccountConfig): boolean {
+  // 默认启用（方便开箱即用的图片识别）
+  if (typeof config.inboundMedia?.enabled === "boolean") return config.inboundMedia.enabled;
+  return true;
+}
+
+export function resolveInboundMediaDir(config: WecomAppAccountConfig): string {
+  return (config.inboundMedia?.dir ?? "").trim() || DEFAULT_INBOUND_MEDIA_DIR;
+}
+
+export function resolveInboundMediaMaxBytes(config: WecomAppAccountConfig): number {
+  const v = config.inboundMedia?.maxBytes;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : DEFAULT_INBOUND_MEDIA_MAX_BYTES;
+}
+
+export function resolveInboundMediaKeepDays(config: WecomAppAccountConfig): number {
+  const v = config.inboundMedia?.keepDays;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : DEFAULT_INBOUND_MEDIA_KEEP_DAYS;
 }

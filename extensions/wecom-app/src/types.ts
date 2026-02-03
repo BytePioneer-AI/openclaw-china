@@ -32,6 +32,18 @@ export type WecomAppAccountConfig = {
   /** 应用 AgentId (用于主动发送) */
   agentId?: number;
 
+  /** 入站媒体（图片/文件）落盘设置 */
+  inboundMedia?: {
+    /** 是否启用入站媒体落盘（默认 true） */
+    enabled?: boolean;
+    /** 保存目录（默认 /root/.openclaw/media/wecom-app/inbound） */
+    dir?: string;
+    /** 单个文件最大字节数（默认 10MB） */
+    maxBytes?: number;
+    /** 保留天数（默认 7） */
+    keepDays?: number;
+  };
+
   /** 欢迎文本 */
   welcomeText?: string;
 
