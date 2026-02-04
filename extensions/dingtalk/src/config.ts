@@ -63,7 +63,7 @@ export const DingtalkConfigSchema = z.object({
   maxFileSizeMB: z.number().positive().optional().default(100),
 
   /** 仅发送最终回复（非流式） */
-  replyFinalOnly: z.boolean().optional().default(true),
+  replyFinalOnly: z.boolean().optional().default(false),
   
 });
 

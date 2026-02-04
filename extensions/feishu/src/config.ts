@@ -56,7 +56,7 @@ export const FeishuConfigSchema = z.object({
   textChunkLimit: z.number().int().positive().optional().default(4000),
 
   /** 仅发送最终回复（非流式） */
-  replyFinalOnly: z.boolean().optional().default(true),
+  replyFinalOnly: z.boolean().optional().default(false),
 });
 
 export type FeishuConfig = z.infer<typeof FeishuConfigSchema>;
