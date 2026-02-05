@@ -42,6 +42,11 @@ function detectMediaType(filePath: string, mimeType?: string): MediaType {
     if (mime.startsWith("image/")) {
       return "image";
     }
+    // audio/wav：企业微信语音类型通常不支持，降级为文件发送更稳
+    if (mime === "audio/wav" || mime === "audio/x-wav") {
+      return "file";
+    }
+
     if (mime.startsWith("audio/") || mime === "audio/amr") {
       return "voice";
     }
@@ -65,9 +70,14 @@ function detectMediaType(filePath: string, mimeType?: string): MediaType {
   }
 
   // 语音扩展名
-  const voiceExts = ["amr", "speex", "mp3", "wav"];
+  const voiceExts = ["amr", "speex", "mp3"];
   if (voiceExts.includes(ext)) {
     return "voice";
+  }
+
+  // wav：企业微信通常不支持作为 voice，按 file 发送更稳
+  if (ext === "wav") {
+    return "file";
   }
 
   // 默认作为文件处理
