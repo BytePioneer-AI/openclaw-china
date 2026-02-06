@@ -1,23 +1,11 @@
 /**
- * QQ Bot 出站适配器（仅文本）
+ * QQ Bot 出站适配器
  */
 
 import { QQBotConfigSchema } from "./config.js";
-import {
-  getAccessToken,
-  sendC2CMessage,
-  sendGroupMessage,
-  sendChannelMessage,
-  uploadC2CMedia,
-  uploadGroupMedia,
-  sendC2CMediaMessage,
-  sendGroupMediaMessage,
-  MediaFileType,
-} from "./client.js";
+import { getAccessToken, sendC2CMessage, sendGroupMessage, sendChannelMessage } from "./client.js";
+import { sendFileQQBot } from "./send.js";
 import type { QQBotConfig, QQBotSendResult } from "./types.js";
-import { detectMediaType } from "@openclaw-china/shared";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 export interface OutboundConfig {
   channels?: {
@@ -49,63 +37,6 @@ function parseTarget(to: string): { kind: TargetKind; id: string } {
   }
 
   return { kind: "c2c", id: raw };
-}
-
-function isHttpUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://");
-}
-
-function isLocalPath(value: string): boolean {
-  return (
-    value.startsWith("/") ||
-    value.startsWith("./") ||
-    value.startsWith("../") ||
-    /^[a-zA-Z]:[\\/]/.test(value)
-  );
-}
-
-function resolveMediaFileType(params: { mediaUrl: string; fileName?: string }): MediaFileType {
-  const type = detectMediaType(params.fileName ?? params.mediaUrl);
-  switch (type) {
-    case "image":
-      return MediaFileType.IMAGE;
-    case "video":
-      return MediaFileType.VIDEO;
-    case "audio":
-      return MediaFileType.VOICE;
-    default:
-      return MediaFileType.FILE;
-  }
-}
-
-async function loadMediaBuffer(mediaUrl: string): Promise<{ buffer: Buffer; fileName: string }> {
-  if (isLocalPath(mediaUrl)) {
-    if (!fs.existsSync(mediaUrl)) {
-      throw new Error(`Local file not found: ${mediaUrl}`);
-    }
-    const buffer = fs.readFileSync(mediaUrl);
-    const fileName = path.basename(mediaUrl) || "file";
-    return { buffer, fileName };
-  }
-
-  if (!isHttpUrl(mediaUrl)) {
-    throw new Error(`Unsupported mediaUrl: ${mediaUrl}`);
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-    try {
-      const response = await fetch(mediaUrl, { signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media: HTTP ${response.status}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const fileName = path.basename(new URL(mediaUrl).pathname) || "file";
-    return { buffer, fileName };
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 export const qqbotOutbound = {
@@ -201,38 +132,10 @@ export const qqbotOutbound = {
     }
 
     try {
-      const { buffer, fileName } = await loadMediaBuffer(mediaUrl);
-      const fileType = resolveMediaFileType({ mediaUrl, fileName });
-      const base64Data = buffer.toString("base64");
-      const accessToken = await getAccessToken(qqCfg.appId, qqCfg.clientSecret);
-
-      if (target.kind === "group") {
-        const upload = await uploadGroupMedia({
-          accessToken,
-          groupOpenid: target.id,
-          fileType,
-          fileData: base64Data,
-        });
-        const result = await sendGroupMediaMessage({
-          accessToken,
-          groupOpenid: target.id,
-          fileInfo: upload.file_info,
-          messageId: undefined,
-        });
-        return { channel: "qqbot", messageId: result.id, timestamp: result.timestamp };
-      }
-
-      const upload = await uploadC2CMedia({
-        accessToken,
-        openid: target.id,
-        fileType,
-        fileData: base64Data,
-      });
-      const result = await sendC2CMediaMessage({
-        accessToken,
-        openid: target.id,
-        fileInfo: upload.file_info,
-        messageId: undefined,
+      const result = await sendFileQQBot({
+        cfg: qqCfg,
+        target: { kind: target.kind, id: target.id },
+        mediaUrl,
       });
       return { channel: "qqbot", messageId: result.id, timestamp: result.timestamp };
     } catch (err) {
