@@ -85,6 +85,18 @@ export function extractWecomAppContent(msg: WecomAppInboundMessage): string {
     const url = String((msg as { file?: { url?: string } }).file?.url ?? "").trim();
     return url ? `[file] ${url}` : "[file]";
   }
+  if (msgtype === "location") {
+    const m = msg as { Location_X?: string; Location_Y?: string; Scale?: string; Label?: string };
+    const lat = String(m.Location_X ?? "").trim();
+    const lon = String(m.Location_Y ?? "").trim();
+    const scale = String(m.Scale ?? "").trim();
+    const label = String(m.Label ?? "").trim();
+    const parts: string[] = [];
+    if (lat && lon) parts.push(`${lat},${lon}`);
+    if (label) parts.push(label);
+    if (scale) parts.push(`scale=${scale}`);
+    return parts.length ? `[location] ${parts.join(" ")}` : "[location]";
+  }
   if (msgtype === "event") {
     const eventtype = String(
       (msg as { event?: { eventtype?: string }; Event?: string }).event?.eventtype ??

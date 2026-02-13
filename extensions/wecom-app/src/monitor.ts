@@ -166,14 +166,14 @@ async function readRawBody(req: IncomingMessage, maxBytes: number) {
 function parseXmlBody(xml: string): Record<string, string> {
   const result: Record<string, string> = {};
   // 匹配 CDATA 格式: <Tag><![CDATA[value]]></Tag>
-  const cdataRegex = /<(\w+)><!\[CDATA\[([\s\S]*?)\]\]><\/\1>/g;
+  const cdataRegex = /<([\w:-]+)><!\[CDATA\[([\s\S]*?)\]\]><\/\1>/g;
   let match: RegExpExecArray | null;
   while ((match = cdataRegex.exec(xml)) !== null) {
     const [, key, value] = match;
     result[key!] = value!;
   }
   // 匹配简单格式: <Tag>value</Tag>
-  const simpleRegex = /<(\w+)>([^<]*)<\/\1>/g;
+  const simpleRegex = /<([\w:-]+)>([^<]*)<\/\1>/g;
   while ((match = simpleRegex.exec(xml)) !== null) {
     const [, key, value] = match;
     if (!result[key!]) {
@@ -289,6 +289,11 @@ function parseWecomAppPlainMessage(raw: string): WecomAppInboundMessage {
       // voice fields
       Recognition: xmlData.Recognition,
       Format: xmlData.Format,
+      // location fields
+      Location_X: xmlData.Location_X,
+      Location_Y: xmlData.Location_Y,
+      Scale: xmlData.Scale,
+      Label: xmlData.Label,
       // 事件类型
       Event: xmlData.Event,
     } as WecomAppInboundMessage;
@@ -575,10 +580,20 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
   const plain = selected.plaintext;
   const msg = selected.msg;
   try {
-    const mt = String((msg as any)?.msgtype ?? (msg as any)?.MsgType ?? "");
+    const mt = String((msg as any)?.msgtype ?? (msg as any)?.MsgType ?? "").trim().toLowerCase();
     const mid = String((msg as any)?.MediaId ?? (msg as any)?.media_id ?? (msg as any)?.image?.media_id ?? "");
     const pic = String((msg as any)?.PicUrl ?? (msg as any)?.image?.url ?? "");
     logger.info(`[wecom-app] inbound msg parsed: msgtype=${mt} MediaId=${mid ? "yes" : "no"} PicUrl=${pic ? "yes" : "no"}`);
+
+    // 按用户要求：定位调试日志不脱敏，直接输出原始字段
+    if (mt === "location" || mt === "event") {
+      const m = (msg ?? {}) as Record<string, unknown>;
+      const keys = Object.keys(m);
+      logger.info(`[wecom-app] raw msg keys=${keys.join(",")}`);
+      logger.info(`[wecom-app] raw msg json=${JSON.stringify(m)}`);
+      logger.info(`[wecom-app] raw decrypted plaintext=${plain}`);
+      logger.info(`[wecom-app] raw webhook body=${rawBody}`);
+    }
   } catch {
     // ignore
   }
