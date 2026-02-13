@@ -57,6 +57,18 @@ export type WecomAppAccountConfig = {
     prefer?: "amr";
   };
 
+  /**
+   * 入站语音 ASR 配置（腾讯云录音文件识别极速版）
+   */
+  asr?: {
+    enabled?: boolean;
+    appId?: string;
+    secretId?: string;
+    secretKey?: string;
+    engineType?: string;
+    timeoutMs?: number;
+  };
+
   /** 欢迎文本 */
   welcomeText?: string;
 
@@ -72,6 +84,14 @@ export type WecomAppAccountConfig = {
 export type WecomAppConfig = WecomAppAccountConfig & {
   accounts?: Record<string, WecomAppAccountConfig>;
   defaultAccount?: string;
+};
+
+export type WecomAppASRCredentials = {
+  appId: string;
+  secretId: string;
+  secretKey: string;
+  engineType?: string;
+  timeoutMs?: number;
 };
 
 /**

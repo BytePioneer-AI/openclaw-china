@@ -8,6 +8,7 @@ import { join } from "node:path";
 import type {
   ResolvedWecomAppAccount,
   WecomAppAccountConfig,
+  WecomAppASRCredentials,
   WecomAppConfig,
   WecomAppDmPolicy,
 } from "./types.js";
@@ -48,6 +49,16 @@ const WecomAppAccountSchema = z.object({
     .object({
       enabled: z.boolean().optional(),
       prefer: z.enum(["amr"]).optional(),
+    })
+    .optional(),
+  asr: z
+    .object({
+      enabled: z.boolean().optional(),
+      appId: z.string().optional(),
+      secretId: z.string().optional(),
+      secretKey: z.string().optional(),
+      engineType: z.string().optional(),
+      timeoutMs: z.number().int().positive().optional(),
     })
     .optional(),
 
@@ -97,6 +108,18 @@ export const WecomAppConfigJsonSchema = {
           prefer: { type: "string", enum: ["amr"] },
         },
       },
+      asr: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          enabled: { type: "boolean" },
+          appId: { type: "string" },
+          secretId: { type: "string" },
+          secretKey: { type: "string" },
+          engineType: { type: "string" },
+          timeoutMs: { type: "number" },
+        },
+      },
       welcomeText: { type: "string" },
       dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
       allowFrom: { type: "array", items: { type: "string" } },
@@ -126,6 +149,18 @@ export const WecomAppConfigJsonSchema = {
                 dir: { type: "string" },
                 maxBytes: { type: "number" },
                 keepDays: { type: "number" },
+              },
+            },
+            asr: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                enabled: { type: "boolean" },
+                appId: { type: "string" },
+                secretId: { type: "string" },
+                secretKey: { type: "string" },
+                engineType: { type: "string" },
+                timeoutMs: { type: "number" },
               },
             },
             welcomeText: { type: "string" },
@@ -304,4 +339,17 @@ export function resolveInboundMediaKeepDays(config: WecomAppAccountConfig): numb
 export function resolveMaxFileSizeMB(config: WecomAppAccountConfig): number {
   const v = config.maxFileSizeMB;
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 100;
+}
+
+export function resolveWecomAppASRCredentials(config: WecomAppAccountConfig): WecomAppASRCredentials | undefined {
+  const asr = config.asr;
+  if (!asr?.enabled) return undefined;
+  if (!asr.appId || !asr.secretId || !asr.secretKey) return undefined;
+  return {
+    appId: asr.appId,
+    secretId: asr.secretId,
+    secretKey: asr.secretKey,
+    engineType: asr.engineType,
+    timeoutMs: asr.timeoutMs,
+  };
 }
