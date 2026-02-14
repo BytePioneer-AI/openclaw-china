@@ -159,7 +159,8 @@ export async function sendGroupMessage(params: {
     messageId: params.messageId,
     markdown: params.markdown,
   });
-  return apiPost(params.accessToken, `/v2/groups/${params.groupOpenid}/messages`, body, {
+  const groupOpenidLower = params.groupOpenid.toLowerCase();
+  return apiPost(params.accessToken, `/v2/groups/${groupOpenidLower}/messages`, body, {
     timeout: 15000,
   });
 }
@@ -174,7 +175,8 @@ export async function sendChannelMessage(params: {
   if (params.messageId) {
     body.msg_id = params.messageId;
   }
-  return apiPost(params.accessToken, `/channels/${params.channelId}/messages`, body, {
+  const channelIdLower = params.channelId.toLowerCase();
+  return apiPost(params.accessToken, `/channels/${channelIdLower}/messages`, body, {
     timeout: 15000,
   });
 }

@@ -448,7 +448,7 @@ function resolveInbound(eventType: string, data: unknown): QQInboundMessage | nu
 
 function resolveChatTarget(event: QQInboundMessage): { to: string; peerId: string; peerKind: "group" | "dm" } {
   if (event.type === "group") {
-    const group = event.groupOpenid ?? "";
+    const group = (event.groupOpenid ?? "").toLowerCase();
     return {
       to: `group:${group}`,
       peerId: `group:${group}`,
@@ -456,7 +456,7 @@ function resolveChatTarget(event: QQInboundMessage): { to: string; peerId: strin
     };
   }
   if (event.type === "channel") {
-    const channel = event.channelId ?? "";
+    const channel = (event.channelId ?? "").toLowerCase();
     return {
       to: `channel:${channel}`,
       peerId: `channel:${channel}`,
@@ -472,10 +472,10 @@ function resolveChatTarget(event: QQInboundMessage): { to: string; peerId: strin
 
 function resolveEnvelopeFrom(event: QQInboundMessage): string {
   if (event.type === "group") {
-    return `group:${event.groupOpenid ?? "unknown"}`;
+    return `group:${(event.groupOpenid ?? "unknown").toLowerCase()}`;
   }
   if (event.type === "channel") {
-    return `channel:${event.channelId ?? "unknown"}`;
+    return `channel:${(event.channelId ?? "unknown").toLowerCase()}`;
   }
   return event.senderName?.trim() || event.senderId;
 }
