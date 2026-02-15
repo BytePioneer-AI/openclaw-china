@@ -43,6 +43,11 @@ export type WecomDispatchHooks = {
 function resolveOpenClawStateDir(): string {
   const override = process.env.OPENCLAW_STATE_DIR?.trim() || process.env.CLAWDBOT_STATE_DIR?.trim();
   if (override) {
+    if (override.startsWith("~")) {
+      const home = os.homedir();
+      const normalized = override === "~" ? home : path.join(home, override.slice(2));
+      return path.resolve(normalized);
+    }
     return path.resolve(override);
   }
   return path.join(os.homedir(), ".openclaw");
