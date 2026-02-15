@@ -26,6 +26,7 @@ type WecomWebhookTarget = {
 type StreamState = {
   streamId: string;
   msgid?: string;
+  to?: string;
   createdAt: number;
   updatedAt: number;
   started: boolean;
@@ -58,6 +59,18 @@ function normalizeWebhookPath(raw: string): string {
   const withSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
   if (withSlash.length > 1 && withSlash.endsWith("/")) return withSlash.slice(0, -1);
   return withSlash;
+}
+
+function normalizeToToken(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "";
+  if (value.startsWith("user:")) {
+    return `user:${value.slice("user:".length).trim().toLowerCase()}`;
+  }
+  if (value.startsWith("group:")) {
+    return `group:${value.slice("group:".length).trim()}`;
+  }
+  return value;
 }
 
 function appendToStream(streamId: string, chunk: string): boolean {
@@ -258,6 +271,34 @@ function appendStreamContent(state: StreamState, nextText: string): void {
   }
 }
 
+function listActiveStreamIdsByTo(to: string): string[] {
+  const normalized = normalizeToToken(to);
+  if (!normalized) return [];
+  const ids: string[] = [];
+  for (const [id, state] of streams.entries()) {
+    if (state.finished) continue;
+    if (normalizeToToken(state.to ?? "") !== normalized) continue;
+    ids.push(id);
+  }
+  return ids;
+}
+
+function pickNewestStreamId(streamIds: string[]): string | undefined {
+  let selected: { id: string; updatedAt: number; createdAt: number } | undefined;
+  for (const id of streamIds) {
+    const state = streams.get(id);
+    if (!state || state.finished) continue;
+    if (
+      !selected ||
+      state.updatedAt > selected.updatedAt ||
+      (state.updatedAt === selected.updatedAt && state.createdAt > selected.createdAt)
+    ) {
+      selected = { id, updatedAt: state.updatedAt, createdAt: state.createdAt };
+    }
+  }
+  return selected?.id;
+}
+
 function bindStreamRouteContext(params: { streamId: string; sessionKey?: string; runId?: string }): void {
   const streamId = params.streamId.trim();
   if (!streamId) return;
@@ -302,6 +343,8 @@ export function appendWecomActiveStreamChunk(params: {
 }): boolean {
   const chunk = params.chunk.trim();
   if (!chunk) return false;
+  const to = normalizeToToken(params.to);
+  if (!to) return false;
 
   const runId = params.runId?.trim();
   const sessionKey = params.sessionKey?.trim();
@@ -325,12 +368,41 @@ export function appendWecomActiveStreamChunk(params: {
         return true;
       }
     }
+    const toCandidates = listActiveStreamIdsByTo(to);
+    if (toCandidates.length === 1) {
+      console.warn(`[wecom] append stream chunk fallback by to after runId miss: runId=${runId}, to=${to}`);
+      return appendToStream(toCandidates[0]!, chunk);
+    }
+    if (toCandidates.length > 1) {
+      const newest = pickNewestStreamId(toCandidates);
+      if (newest) {
+        console.warn(
+          `[wecom] append stream chunk fallback by newest to after runId miss: runId=${runId}, to=${to}, candidates=${toCandidates.length}`
+        );
+        return appendToStream(newest, chunk);
+      }
+    }
     return false;
   }
 
   if (sessionKey) {
     const streamId = streamBySessionKey.get(sessionKey);
     if (streamId && appendToStream(streamId, chunk)) return true;
+  }
+
+  const toCandidates = listActiveStreamIdsByTo(to);
+  if (toCandidates.length === 1) {
+    console.warn(`[wecom] append stream chunk fallback by to without context: to=${to}`);
+    return appendToStream(toCandidates[0]!, chunk);
+  }
+  if (toCandidates.length > 1) {
+    const newest = pickNewestStreamId(toCandidates);
+    if (newest) {
+      console.warn(
+        `[wecom] append stream chunk fallback by newest to without context: to=${to}, candidates=${toCandidates.length}`
+      );
+      return appendToStream(newest, chunk);
+    }
   }
 
   return false;
@@ -586,9 +658,13 @@ export async function handleWecomWebhookRequest(req: IncomingMessage, res: Serve
 
   const streamId = createStreamId();
   if (msgid) msgidToStreamId.set(msgid, streamId);
+  const senderId = String(msg.from?.userid ?? "").trim() || "unknown";
+  const chatType = String(msg.chattype ?? "").toLowerCase() === "group" ? "group" : "single";
+  const to = chatType === "group" ? `group:${String(msg.chatid ?? "").trim() || "unknown"}` : `user:${senderId}`;
   streams.set(streamId, {
     streamId,
     msgid,
+    to: normalizeToToken(to),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     started: false,

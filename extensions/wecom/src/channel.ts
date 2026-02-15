@@ -392,18 +392,6 @@ export const wecomPlugin = {
           error,
         };
       }
-      if (!streamContext.runId && !streamContext.sessionKey) {
-        const error = new Error(
-          `Missing run/session context for WeCom stream reply to ${params.to}. Root-cause mode requires runId or sessionKey.`
-        );
-        console.error(`[wecom] sendText failed: ${error.message}`);
-        return {
-          channel: "wecom",
-          ok: false,
-          messageId: "",
-          error,
-        };
-      }
       console.log(
         `[wecom] sendText stream context: runId=${streamContext.runId ?? "-"}, sessionKey=${streamContext.sessionKey ?? "-"}`
       );
@@ -455,18 +443,6 @@ export const wecomPlugin = {
       const streamContext = resolveStreamContext(params);
       if (!parsed) {
         const error = new Error(`Unsupported target for WeCom: ${params.to}`);
-        console.error(`[wecom] sendMedia failed: ${error.message}`);
-        return {
-          channel: "wecom",
-          ok: false,
-          messageId: "",
-          error,
-        };
-      }
-      if (!streamContext.runId && !streamContext.sessionKey) {
-        const error = new Error(
-          `Missing run/session context for WeCom stream reply to ${params.to}. Root-cause mode requires runId or sessionKey.`
-        );
         console.error(`[wecom] sendMedia failed: ${error.message}`);
         return {
           channel: "wecom",
