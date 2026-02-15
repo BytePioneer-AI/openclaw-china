@@ -41,7 +41,7 @@ describe("wecom outbound reply store", () => {
     clearOutboundReplyState();
   });
 
-  it("registers and consumes response_url in LIFO order", () => {
+  it("returns latest response_url and keeps it reusable", () => {
     registerResponseUrl({
       accountId: "default",
       to: "user:alice",
@@ -64,13 +64,7 @@ describe("wecom outbound reply store", () => {
         accountId: "default",
         to: "user:alice",
       })
-    ).toBe("https://reply.local/1");
-    expect(
-      consumeResponseUrl({
-        accountId: "default",
-        to: "user:alice",
-      })
-    ).toBeNull();
+    ).toBe("https://reply.local/2");
   });
 
   it("captures public base url from forwarded headers", () => {
@@ -116,4 +110,3 @@ describe("wecom outbound reply store", () => {
     await fs.unlink(filePath);
   });
 });
-

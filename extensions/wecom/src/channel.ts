@@ -449,10 +449,14 @@ export const wecomPlugin = {
         }
 
         const mediaType = detectOutboundMediaType(publicMediaUrl, params.mimeType);
-        if (params.text?.trim()) {
-          console.warn(
-            "[wecom] sendMedia received caption text, but response_url is single-use; sending media only."
-          );
+        const caption = params.text?.trim();
+        if (caption) {
+          await postWecomResponse(responseUrl, {
+            msgtype: "text",
+            text: {
+              content: caption,
+            },
+          });
         }
         const payload =
           mediaType === "image"
