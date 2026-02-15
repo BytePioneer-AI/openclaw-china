@@ -90,8 +90,6 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest --run",
-    "test:watch": "vitest",
     "release": "npm run build && npm publish",
     "release:patch": "npm run build && npm version patch && npm publish",
     "release:minor": "npm run build && npm version minor && npm publish",
@@ -102,10 +100,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "fast-check": "^3.22.0",
     "tsup": "^8.2.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {

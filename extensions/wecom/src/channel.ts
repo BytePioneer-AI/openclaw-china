@@ -136,6 +136,17 @@ function resolveReplyTargetToken(parsed: ParsedDirectTarget): string {
   return `${parsed.kind}:${parsed.id}`;
 }
 
+function resolveStreamContext(params: unknown): { sessionKey?: string; runId?: string } {
+  if (!params || typeof params !== "object") return {};
+  const maybe = params as Record<string, unknown>;
+  const sessionKey = typeof maybe.sessionKey === "string" ? maybe.sessionKey.trim() : "";
+  const runId = typeof maybe.runId === "string" ? maybe.runId.trim() : "";
+  return {
+    sessionKey: sessionKey || undefined,
+    runId: runId || undefined,
+  };
+}
+
 async function postWecomResponse(responseUrl: string, payload: unknown): Promise<void> {
   const body = JSON.stringify(payload);
   const response = await fetch(responseUrl, {
@@ -360,6 +371,8 @@ export const wecomPlugin = {
       to: string;
       text: string;
       options?: { markdown?: boolean };
+      sessionKey?: string;
+      runId?: string;
     }): Promise<{
       channel: string;
       ok: boolean;
@@ -369,6 +382,7 @@ export const wecomPlugin = {
       console.log(`[wecom] sendText called: to=${params.to}, textLen=${params.text.length}`);
       const account = resolveWecomAccount({ cfg: params.cfg, accountId: params.accountId });
       const parsed = parseDirectTarget(params.to);
+      const streamContext = resolveStreamContext(params);
       if (!parsed) {
         const error = new Error(`Unsupported target for WeCom: ${params.to}`);
         console.error(`[wecom] sendText failed: ${error.message}`);
@@ -384,6 +398,8 @@ export const wecomPlugin = {
         accountId: account.accountId,
         to: replyTarget,
         chunk: params.text,
+        sessionKey: streamContext.sessionKey,
+        runId: streamContext.runId,
       });
       if (streamAccepted) {
         return {
@@ -392,52 +408,16 @@ export const wecomPlugin = {
           messageId: `stream:${Date.now()}`,
         };
       }
-      const responseUrl = consumeResponseUrl({
-        accountId: account.accountId,
-        to: replyTarget,
-      });
-      if (!responseUrl) {
-        const error = new Error(
-          `No response_url available for ${replyTarget}. WeCom smart bot can only reply after inbound messages.`
-        );
-        console.error(`[wecom] sendText failed: ${error.message}`);
-        return {
-          channel: "wecom",
-          ok: false,
-          messageId: "",
-          error,
-        };
-      }
-      try {
-        const useMarkdown = params.options?.markdown !== false;
-        const payload = useMarkdown
-          ? {
-              msgtype: "markdown",
-              markdown: {
-                content: params.text,
-              },
-            }
-          : {
-              msgtype: "text",
-              text: {
-                content: params.text,
-              },
-            };
-        await postWecomResponse(responseUrl, payload);
-        return {
-          channel: "wecom",
-          ok: true,
-          messageId: `response:${Date.now()}`,
-        };
-      } catch (err) {
-        console.error(`[wecom] sendText failed: ${formatError(err)}`);
-        return {
-          channel: "wecom",
-          ok: false,
-          messageId: "",
-          error: err instanceof Error ? err : new Error(String(err)),
-        };
-      }
+      const error = new Error(
+        `No active stream available for ${replyTarget}. WeCom message tool is stream-only in current mode.`
+      );
+      console.error(`[wecom] sendText failed: ${error.message}`);
+      return {
+        channel: "wecom",
+        ok: false,
+        messageId: "",
+        error,
+      };
     },
 
     sendMedia: async (params: {
@@ -447,6 +427,8 @@ export const wecomPlugin = {
       mediaUrl: string;
       text?: string;
       mimeType?: string;
+      sessionKey?: string;
+      runId?: string;
     }): Promise<{
       channel: string;
       ok: boolean;
@@ -456,6 +438,7 @@ export const wecomPlugin = {
       console.log(`[wecom] sendMedia called: to=${params.to}, mediaUrl=${params.mediaUrl}`);
       const account = resolveWecomAccount({ cfg: params.cfg, accountId: params.accountId });
       const parsed = parseDirectTarget(params.to);
+      const streamContext = resolveStreamContext(params);
       if (!parsed) {
         const error = new Error(`Unsupported target for WeCom: ${params.to}`);
         console.error(`[wecom] sendMedia failed: ${error.message}`);
@@ -501,6 +484,8 @@ export const wecomPlugin = {
           accountId: account.accountId,
           to: replyTarget,
           chunk: markdown,
+          sessionKey: streamContext.sessionKey,
+          runId: streamContext.runId,
         });
         if (streamAccepted) {
           console.log(
@@ -513,36 +498,15 @@ export const wecomPlugin = {
           };
         }
 
-        const responseUrl = consumeResponseUrl({
-          accountId: account.accountId,
-          to: replyTarget,
-        });
-        if (!responseUrl) {
-          const error = new Error(
-            `No response_url available for ${replyTarget}. WeCom smart bot can only reply after inbound messages.`
-          );
-          console.error(`[wecom] sendMedia failed: ${error.message}`);
-          return {
-            channel: "wecom",
-            ok: false,
-            messageId: "",
-            error,
-          };
-        }
-
-        await postWecomResponse(responseUrl, {
-          msgtype: "markdown",
-          markdown: {
-            content: markdown,
-          },
-        });
-        console.log(
-          `[wecom] sendMedia success (markdown): type=${mediaType}, to=${replyTarget}`
+        const error = new Error(
+          `No active stream available for ${replyTarget}. WeCom message tool is stream-only in current mode.`
         );
+        console.error(`[wecom] sendMedia failed: ${error.message}`);
         return {
           channel: "wecom",
-          ok: true,
-          messageId: `response:${Date.now()}`,
+          ok: false,
+          messageId: "",
+          error,
         };
       } catch (err) {
         console.error(`[wecom] sendMedia failed: ${formatError(err)}`);

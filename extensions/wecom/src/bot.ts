@@ -35,6 +35,7 @@ import {
 } from "./outbound-reply.js";
 
 export type WecomDispatchHooks = {
+  onRouteContext?: (context: { sessionKey?: string; runId?: string }) => void;
   onChunk: (text: string) => void | Promise<void>;
   onError?: (err: unknown) => void;
 };
@@ -457,6 +458,19 @@ export async function dispatchWecomMessage(params: {
     ctxPayload.SenderId = senderId;
     ctxPayload.SenderName = senderId;
     ctxPayload.ConversationLabel = fromLabel;
+
+    const contextRunId = (() => {
+      const candidates = ["RunId", "runId", "AgentRunId", "agentRunId"] as const;
+      for (const key of candidates) {
+        const value = ctxPayload[key];
+        if (typeof value === "string" && value.trim()) return value.trim();
+      }
+      return undefined;
+    })();
+    hooks.onRouteContext?.({
+      sessionKey: route.sessionKey,
+      runId: contextRunId,
+    });
 
     // DM/group policy already passed above, so commands are eligible for this sender.
     // Without this flag, OpenClaw finalizer defaults CommandAuthorized to false.
