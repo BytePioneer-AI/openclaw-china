@@ -413,6 +413,12 @@ export interface InboundContext {
   OriginatingChannel: "dingtalk";
   /** 原始接收�?*/
   OriginatingTo: string;
+  /** 钉钉会话 ID（群聊/单聊） */
+  ConversationId?: string;
+  /** 钉钉用户 ID */
+  UserId?: string;
+  /** 群 ID（仅群聊） */
+  GroupId?: string;
   
   // ===== 媒体相关字段 (Requirements 7.1-7.8) =====
   
@@ -469,6 +475,9 @@ export function buildInboundContext(
     GroupSubject: isGroup ? ctx.conversationId : undefined,
     SenderName: ctx.senderNick,
     SenderId: ctx.senderId,
+    UserId: ctx.senderId,
+    ConversationId: ctx.conversationId,
+    GroupId: isGroup ? ctx.conversationId : undefined,
     Provider: "dingtalk",
     MessageSid: ctx.messageId,
     Timestamp: Date.now(),
@@ -476,6 +485,31 @@ export function buildInboundContext(
     CommandAuthorized: true,
     OriginatingChannel: "dingtalk",
     OriginatingTo: to,
+  };
+}
+
+function buildTargetMeta(
+  ctx: DingtalkMessageContext,
+  inboundCtx?: Pick<InboundContext, "From" | "To">
+): Record<string, unknown> {
+  const isGroup = ctx.chatType === "group";
+  const from = isGroup
+    ? `dingtalk:group:${ctx.conversationId}`
+    : `dingtalk:${ctx.senderId}`;
+  const to = isGroup
+    ? `chat:${ctx.conversationId}`
+    : `user:${ctx.senderId}`;
+
+  return {
+    chatType: ctx.chatType,
+    senderId: ctx.senderId,
+    userId: ctx.senderId,
+    conversationId: ctx.conversationId,
+    groupId: isGroup ? ctx.conversationId : undefined,
+    targetId: isGroup ? ctx.conversationId : ctx.senderId,
+    from: inboundCtx?.From ?? from,
+    to: inboundCtx?.To ?? to,
+    messageId: ctx.messageId,
   };
 }
 
@@ -732,6 +766,14 @@ export async function handleDingtalkMessage(params: {
   const ctx = parseDingtalkMessage(raw);
   const isGroup = ctx.chatType === "group";
   const audioRecognition = resolveAudioRecognition(raw);
+  const inboundTargetMeta = buildTargetMeta(ctx);
+  logger.info(
+    `[inbound] received=${JSON.stringify({
+      ...inboundTargetMeta,
+      contentType: ctx.contentType,
+      mentionedBot: ctx.mentionedBot,
+    })}`
+  );
   
   // 获取钉钉配置
   const dingtalkCfg = (cfg as Record<string, unknown>)?.channels as Record<string, unknown> | undefined;
@@ -765,7 +807,12 @@ export async function handleDingtalkMessage(params: {
     });
     
     if (!policyResult.allowed) {
-      logger.debug(`policy rejected: ${policyResult.reason}`);
+      logger.debug(
+        `[policy] rejected=${JSON.stringify({
+          reason: policyResult.reason,
+          ...inboundTargetMeta,
+        })}`
+      );
       return;
     }
   } else {
@@ -779,7 +826,12 @@ export async function handleDingtalkMessage(params: {
     });
     
     if (!policyResult.allowed) {
-      logger.debug(`policy rejected: ${policyResult.reason}`);
+      logger.debug(
+        `[policy] rejected=${JSON.stringify({
+          reason: policyResult.reason,
+          ...inboundTargetMeta,
+        })}`
+      );
       return;
     }
   }
@@ -1005,6 +1057,8 @@ export async function handleDingtalkMessage(params: {
       | ((ctx: InboundContext) => InboundContext)
       | undefined;
     const finalCtx = finalizeInboundContext ? finalizeInboundContext(inboundCtx) : inboundCtx;
+    const resolvedTargetMeta = buildTargetMeta(ctx, finalCtx);
+    logger.debug(`[inbound] context=${JSON.stringify(resolvedTargetMeta)}`);
 
     let cronSource = "";
     let cronBase = "";
@@ -1140,6 +1194,7 @@ export async function handleDingtalkMessage(params: {
     const deliver = async (payload: { text?: string; mediaUrl?: string; mediaUrls?: string[] }, info?: { kind?: string }) => {
       logger.debug(
         `[reply] meta=${JSON.stringify({
+          ...resolvedTargetMeta,
           kind: info?.kind ?? "unknown",
           hasText: typeof payload.text === "string",
           mediaCount: Array.isArray(payload.mediaUrls)
@@ -1163,7 +1218,9 @@ export async function handleDingtalkMessage(params: {
           });
           sent = true;
         } catch (err) {
-          logger.error(`[reply] sendMediaDingtalk failed: ${String(err)}`);
+          logger.error(
+            `[reply] sendMediaDingtalk failed (target=${JSON.stringify(resolvedTargetMeta)}): ${String(err)}`
+          );
           const fallbackText = `📎 ${mediaUrl}`;
           await sendMessageDingtalk({
             cfg: dingtalkCfgResolved,
@@ -1250,7 +1307,12 @@ export async function handleDingtalkMessage(params: {
       | undefined;
 
     if (dispatchReplyWithBufferedBlockDispatcher) {
-      logger.debug(`dispatching to agent (buffered, session=${(route as Record<string, unknown>)?.sessionKey})`);
+      logger.debug(
+        `[dispatch] buffered=${JSON.stringify({
+          sessionKey: (route as Record<string, unknown>)?.sessionKey,
+          ...resolvedTargetMeta,
+        })}`
+      );
       const deliveryState = { delivered: false, skippedNonSilent: 0 };
       const result = await dispatchReplyWithBufferedBlockDispatcher({
         ctx: finalCtx,
@@ -1324,7 +1386,12 @@ export async function handleDingtalkMessage(params: {
       return;
     }
 
-    logger.debug(`dispatching to agent (session=${(route as Record<string, unknown>)?.sessionKey})`);
+    logger.debug(
+      `[dispatch] standard=${JSON.stringify({
+        sessionKey: (route as Record<string, unknown>)?.sessionKey,
+        ...resolvedTargetMeta,
+      })}`
+    );
 
     // 分发消息
     const dispatchReplyFromConfig = replyApi?.dispatchReplyFromConfig as
@@ -1352,7 +1419,9 @@ export async function handleDingtalkMessage(params: {
       `dispatch complete (queuedFinal=${typeof queuedFinal === "boolean" ? queuedFinal : "unknown"}, replies=${counts?.final ?? 0})`
     );
   } catch (err) {
-    logger.error(`failed to dispatch message: ${String(err)}`);
+    logger.error(
+      `failed to dispatch message (target=${JSON.stringify(inboundTargetMeta)}): ${String(err)}`
+    );
   } finally {
     try {
       await pruneInboundMediaDir({
