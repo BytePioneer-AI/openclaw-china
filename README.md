@@ -467,7 +467,7 @@ openclaw plugins install -l ./packages/channels
 
 
 
-<img src="[doc\images\wx_4.jpg](https://github.com/user-attachments/assets/697c25f4-7734-4f22-9c3b-36c287457bb8)" alt="二维码" width="50%" />
+<img src="https://github.com/user-attachments/assets/697c25f4-7734-4f22-9c3b-36c287457bb8" alt="二维码" width="50%" />
 
 
 
