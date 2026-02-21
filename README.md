@@ -14,6 +14,7 @@
   <a href="#功能支持">功能支持</a> •
   <a href="#更新日志">更新日志</a> •
   <a href="#演示">演示</a> •
+  <a href="#推荐项目">推荐项目</a> •
   <a href="#配置选项">配置选项</a> •
   <a href="#开发">开发</a> •
   <a href="#加入交流群">加入交流群</a>
@@ -21,6 +22,9 @@
 <p align="center">
   <strong>⭐ 如果这个项目对你有帮助，请给我们一个Star！⭐</strong><br>
   <em>您的支持是我们持续改进的动力</em>
+</p>
+<p align="center">
+  <strong>🤖 推荐：<a href="https://github.com/BytePioneer-AI/clawmate">ClawMate</a></strong> — 为 OpenClaw 添加有温度的角色伴侣
 </p>
 <table align="center">
   <thead>
@@ -363,6 +367,30 @@ openclaw gateway --port 18789 --verbose
 ![钉钉机器人演示](doc/images/dingtalk-demo_2.gif)
 
 ![钉钉机器人演示](doc/images/dingtalk-demo_3.png)
+
+## 推荐项目
+
+### 🤖 ClawMate - OpenClaw 角色伴侣插件
+
+> 为 OpenClaw 添加一个有温度的角色伴侣
+
+[ClawMate](https://github.com/BytePioneer-AI/clawmate) 是一个为 OpenClaw 设计的角色伴侣插件，让你的 AI 助手拥有视觉形象和情感温度。
+
+**核心功能**
+- ⏰ **时间感知** — 场景和穿搭随时间自动切换（早晨、上课、午休、傍晚、深夜）
+- 📸 **情境生图** — 根据对话内容和当前状态生成写实自拍
+- 💬 **主动发图** — 日常聊天中随机发自拍表示关心
+- 👥 **多角色** — 内置角色 + 对话创建自定义角色
+- 🎨 **多图像服务** — 支持阿里云百炼、火山引擎 ARK、fal.ai、OpenAI 兼容接口
+
+**快速安装**
+```bash
+npx github:BytePioneer-AI/clawmate
+```
+
+**应用场景**：个人伴侣、虚拟导师、智能客服、专业顾问
+
+了解更多：[https://github.com/BytePioneer-AI/clawmate](https://github.com/BytePioneer-AI/clawmate)
 
 ## 配置选项
 
