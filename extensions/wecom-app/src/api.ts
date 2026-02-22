@@ -1194,6 +1194,56 @@ export async function sendWecomAppFileMessage(
 }
 
 /**
+ * 发送视频消息
+ * @param account 账户配置
+ * @param target 发送目标
+ * @param mediaId 视频 media_id
+ */
+export async function sendWecomAppVideoMessage(
+  account: ResolvedWecomAppAccount,
+  target: WecomAppSendTarget,
+  mediaId: string
+): Promise<SendMessageResult> {
+  if (!account.canSendActive) {
+    return {
+      ok: false,
+      errcode: -1,
+      errmsg: "Account not configured for active sending (missing corpId, corpSecret, or agentId)",
+    };
+  }
+
+  const token = await getAccessToken(account);
+
+  const payload: Record<string, unknown> = {
+    msgtype: "video",
+    agentid: account.agentId,
+    video: { media_id: mediaId },
+    touser: target.userId,
+  };
+
+  const resp = await fetch(
+    buildWecomApiUrl(account, `/cgi-bin/message/send?access_token=${encodeURIComponent(token)}`),
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  const data = (await resp.json()) as SendMessageResult & { errcode?: number };
+
+  return {
+    ok: data.errcode === 0,
+    errcode: data.errcode,
+    errmsg: data.errmsg,
+    invaliduser: data.invaliduser,
+    invalidparty: data.invalidparty,
+    invalidtag: data.invalidtag,
+    msgid: data.msgid,
+  };
+}
+
+/**
  * 下载文件（支持网络 URL 和本地文件路径）
  * @param fileUrl 文件 URL 或本地文件路径
  * @returns 文件 Buffer
@@ -1284,6 +1334,73 @@ export async function downloadAndSendFile(
     return result;
   } catch (err) {
     console.error(`[wecom-app] downloadAndSendFile error:`, err);
+    return {
+      ok: false,
+      errcode: -1,
+      errmsg: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * 下载并发送视频（完整流程）
+ * @param account 账户配置
+ * @param target 发送目标
+ * @param videoUrl 视频 URL 或本地文件路径
+ */
+export async function downloadAndSendVideo(
+  account: ResolvedWecomAppAccount,
+  target: WecomAppSendTarget,
+  videoUrl: string
+): Promise<SendMessageResult> {
+  try {
+    console.log(`[wecom-app] Downloading video from: ${videoUrl}`);
+
+    // 1. 下载视频
+    const { buffer: videoBuffer, contentType } = await downloadFile(videoUrl);
+    console.log(`[wecom-app] Video downloaded, size: ${videoBuffer.length} bytes, contentType: ${contentType || 'unknown'}`);
+
+    // 2. 提取文件扩展名
+    let filename = "video.mp4";
+
+    try {
+      // 本地路径：取 basename
+      if (!videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
+        const path = await import('path');
+        const base = path.basename(videoUrl);
+        if (base && base !== '.' && base !== '/') {
+          filename = base;
+        }
+      } else {
+        // URL：取 pathname 的 basename
+        const u = new URL(videoUrl);
+        const base = u.pathname.split('/').filter(Boolean).pop();
+        if (base) filename = base;
+      }
+    } catch {
+      // ignore and fallback
+    }
+
+    // 如果没拿到扩展名，按 url/path 推断一个
+    if (!/\.[A-Za-z0-9]{1,10}$/.test(filename)) {
+      const extMatch = videoUrl.split('?')[0].match(/\.([^.]+)$/);
+      const ext = extMatch ? `.${extMatch[1]}` : '.mp4';
+      filename = `video${ext}`;
+    }
+
+    // 3. 上传获取 media_id
+    console.log(`[wecom-app] Uploading video to WeCom media API, filename: ${filename}`);
+    const mediaId = await uploadMedia(account, videoBuffer, filename, contentType, "video");
+    console.log(`[wecom-app] Video uploaded, media_id: ${mediaId}`);
+
+    // 4. 发送视频消息
+    console.log(`[wecom-app] Sending video to target:`, target);
+    const result = await sendWecomAppVideoMessage(account, target, mediaId);
+    console.log(`[wecom-app] Video sent, ok: ${result.ok}, msgid: ${result.msgid}, errcode: ${result.errcode}, errmsg: ${result.errmsg}`);
+
+    return result;
+  } catch (err) {
+    console.error(`[wecom-app] downloadAndSendVideo error:`, err);
     return {
       ok: false,
       errcode: -1,

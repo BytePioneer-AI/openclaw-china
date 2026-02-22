@@ -16,13 +16,13 @@ import {
 } from "./config.js";
 import { registerWecomAppWebhookTarget } from "./monitor.js";
 import { setWecomAppRuntime } from "./runtime.js";
-import { sendWecomAppMessage, stripMarkdown, downloadAndSendImage, downloadAndSendVoice, downloadAndSendFile } from "./api.js";
+import { sendWecomAppMessage, stripMarkdown, downloadAndSendImage, downloadAndSendVoice, downloadAndSendFile, downloadAndSendVideo } from "./api.js";
 import { hasFfmpeg, transcodeToAmr } from "./ffmpeg.js";
 
 /**
  * 媒体类型
  */
-type MediaType = "image" | "voice" | "file";
+type MediaType = "image" | "voice" | "file" | "video";
 
 type ParsedDirectTarget = {
   accountId?: string;
@@ -104,6 +104,10 @@ function detectMediaType(filePath: string, mimeType?: string): MediaType {
     if (mime.startsWith("audio/") || mime === "audio/amr") {
       return "voice";
     }
+
+    if (mime.startsWith("video/") && (mime === "video/mp4" || mime === "video/mpeg")) {
+      return "video";
+    }
   }
 
   // 回退到文件扩展名
@@ -132,6 +136,11 @@ function detectMediaType(filePath: string, mimeType?: string): MediaType {
   // wav：企业微信通常不支持作为 voice，按 file 发送更稳
   if (ext === "wav") {
     return "file";
+  }
+
+  // 视频扩展名 - 只支持mp4
+  if (ext === "mp4") {
+    return "video";
   }
 
   // 默认作为文件处理
@@ -547,6 +556,10 @@ export const wecomAppPlugin = {
           } else {
             result = await downloadAndSendVoice(account, target, voiceUrl);
           }
+        } else if (mediaType === "video") {
+          // 视频: 下载 → 上传素材 → 发送
+          console.log(`[wecom-app] Routing to downloadAndSendVideo`);
+          result = await downloadAndSendVideo(account, target, params.mediaUrl);
         } else {
           // 文件/其他: 下载 → 上传素材 → 发送
           // NOTE: 企业微信“文件消息”接口只接收 media_id，客户端经常不展示真实文件名。
