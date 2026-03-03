@@ -18,9 +18,27 @@ import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/sha
 /**
  * Moltbot 插件 API 接口
  */
+type HttpRouteMatch = "exact" | "prefix";
+type HttpRouteAuth = "gateway" | "plugin";
+
+type HttpRouteParams = {
+  path: string;
+  auth: HttpRouteAuth;
+  match?: HttpRouteMatch;
+  handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> | boolean;
+};
+
 export interface MoltbotPluginApi {
   registerChannel: (opts: { plugin: unknown }) => void;
   registerHttpHandler?: (handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> | boolean) => void;
+  registerHttpRoute?: (params: HttpRouteParams) => void;
+  config?: {
+    channels?: {
+      wecom?: {
+        webhookPath?: string;
+      };
+    };
+  };
   runtime?: unknown;
   [key: string]: unknown;
 }
@@ -53,7 +71,22 @@ const plugin = {
 
     api.registerChannel({ plugin: wecomPlugin });
 
-    if (api.registerHttpHandler) {
+    if (api.registerHttpRoute) {
+      const webhookPath = (api.config?.channels?.wecom?.webhookPath ?? "/wecom").trim() || "/wecom";
+      api.registerHttpRoute({
+        path: webhookPath,
+        auth: "plugin",
+        match: "prefix",
+        handler: handleWecomWebhookRequest,
+      });
+      api.registerHttpRoute({
+        path: "/wecom-media",
+        auth: "plugin",
+        match: "prefix",
+        handler: handleWecomWebhookRequest,
+      });
+    } else if (api.registerHttpHandler) {
+      // Backward compatibility for older OpenClaw core
       api.registerHttpHandler(handleWecomWebhookRequest);
     }
   },
