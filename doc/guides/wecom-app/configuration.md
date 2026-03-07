@@ -55,7 +55,7 @@
 ## 前置条件
 
 1. 一个企业微信账号（可使用个人注册的企业）
-2. 公网可访问的 HTTPS 服务器（用于接收回调）
+2. 公网可访问的服务器（用于接收回调）
 3. OpenClaw 已安装并运行
 4. Node.js 和 pnpm（用于构建插件）
 
@@ -69,6 +69,8 @@
 
 > ⚠️ **Windows 用户注意**：若遇到 `spawn npm ENOENT` 错误，请改用方式二（源码安装）。
 >
+> 原贡献者仓库：https://github.com/RainbowRain9/openclaw-china.git
+
 **安装聚合包（包含所有渠道插件）**
 
 ```bash
@@ -179,8 +181,8 @@ pnpm build
 
   **示例**：
 
-  - 使用域名（推荐）：`https://your.domain.com/wecom-app`
-  - 使用 IP 地址：`http://123.45.67.89:18789/wecom-app`
+  - 使用域名：`https://your.domain.com/wecom-app`
+  - 使用 IP 地址（推荐，最简单）：`http://123.45.67.89:18789/wecom-app`
 
   **说明**：
 
@@ -229,6 +231,7 @@ openclaw config set channels.wecom-app '{
   "agentId": 1000002,
   "apiBaseUrl": "https://wecom-proxy.example.com"
 }' --json
+openclaw config set gateway.bind lan
 ```
 
 **Windows CMD**：
@@ -242,6 +245,8 @@ openclaw config set channels.wecom-app.corpId your-corp-id
 openclaw config set channels.wecom-app.corpSecret your-app-secret
 openclaw config set channels.wecom-app.agentId 1000002
 openclaw config set channels.wecom-app.apiBaseUrl https://wecom-proxy.example.com
+openclaw config set gateway.bind lan
+
 ```
 
 ### 或直接编辑配置文件
