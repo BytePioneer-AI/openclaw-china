@@ -725,8 +725,9 @@ export async function sendQQBotMediaWithFallback(params: {
   onDelivered?: () => void;
   onError?: (error: string) => void;
   outbound?: Pick<typeof qqbotOutbound, "sendMedia" | "sendText">;
+  accountId?: string;
 }): Promise<void> {
-  const { qqCfg, to, mediaQueue, replyToId, replyEventId, logger, onDelivered, onError } = params;
+  const { qqCfg, to, mediaQueue, replyToId, replyEventId, logger, onDelivered, onError, accountId } = params;
   const outbound = params.outbound ?? qqbotOutbound;
   for (const mediaUrl of mediaQueue) {
     const result = await outbound.sendMedia({
@@ -735,6 +736,7 @@ export async function sendQQBotMediaWithFallback(params: {
       mediaUrl,
       replyToId,
       replyEventId,
+      accountId,
     });
     if (result.error) {
       logger.error(`sendMedia failed: ${result.error}`);
@@ -749,6 +751,7 @@ export async function sendQQBotMediaWithFallback(params: {
         text: fallback,
         replyToId,
         replyEventId,
+        accountId,
       });
       if (fallbackResult.error) {
         logger.error(`sendText fallback failed: ${fallbackResult.error}`);
@@ -828,6 +831,7 @@ async function dispatchToAgent(params: {
       replyToId: inbound.messageId,
       replyEventId: inbound.eventId,
       inputSecond: 60,
+      accountId,
     });
     if (typing.error) {
       logger.warn(`sendTyping failed: ${typing.error}`);
@@ -871,6 +875,7 @@ async function dispatchToAgent(params: {
         text: LONG_TASK_NOTICE_TEXT,
         replyToId: inbound.messageId,
         replyEventId: inbound.eventId,
+        accountId,
       });
       if (result.error) {
         logger.warn(`send long-task notice failed: ${result.error}`);
@@ -912,6 +917,7 @@ async function dispatchToAgent(params: {
         text: buildVoiceASRFallbackReply(resolvedAttachmentResult.asrErrorMessage),
         replyToId: inbound.messageId,
         replyEventId: inbound.eventId,
+        accountId,
       });
       if (fallback.error) {
         logger.error(`sendText ASR fallback failed: ${fallback.error}`);
@@ -1107,6 +1113,7 @@ async function dispatchToAgent(params: {
             text: chunk,
             replyToId: inbound.messageId,
             replyEventId: inbound.eventId,
+            accountId,
           });
           if (result.error) {
             logger.error(`sendText failed: ${result.error}`);
@@ -1124,6 +1131,7 @@ async function dispatchToAgent(params: {
         replyToId: inbound.messageId,
         replyEventId: inbound.eventId,
         logger,
+        accountId,
         onDelivered: () => {
           markReplyDelivered();
         },
