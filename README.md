@@ -588,12 +588,10 @@ flowchart TD
 - 插件**BUG**建议提交**issue**
 
 **欢迎同学们一起开发~**
-![bd0dc50d3216641c9397bbceb7386844]()
 
 
-<img src="https://github.com/user-attachments/assets/139969ac-8176-410b-8556-d9f15a3a11d1" alt="二维码" width="50%" />
+<img src="https://github.com/user-attachments/assets/1790b876-436b-4900-b4bf-fa8cc971f830" alt="二维码" width="50%" />
 
-<img src="https://github.com/user-attachments/assets/c3d7115b-b561-49ef-9f8e-1787c00ba6d8" alt="二维码" width="50%" />
 
 
 如果二维码过期，可以加下我微信备注说明来意：a28417416
