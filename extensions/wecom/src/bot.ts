@@ -332,6 +332,7 @@ export async function dispatchWecomMessage(params: {
   const route = channel.routing.resolveAgentRoute({
     cfg: safeCfg,
     channel: "wecom",
+    accountId: account.accountId,
     peer: { kind: chatType === "group" ? "group" : "dm", id: chatId },
   });
 
