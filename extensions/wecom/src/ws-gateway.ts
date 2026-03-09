@@ -7,6 +7,7 @@ import { dispatchWecomMessage } from "./bot.js";
 import { tryGetWecomRuntime } from "./runtime.js";
 import {
   appendWecomWsActiveStreamChunk,
+  appendWecomWsActiveStreamReply,
   bindWecomWsRouteContext,
   clearWecomWsReplyContextsForAccount,
   registerWecomWsEventContext,
@@ -140,6 +141,41 @@ function formatLogMessage(message: string, args: unknown[]): string {
   return `${message} ${suffix}`.trim();
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function summarizeWecomReplyFrame(frame: WecomWsFrame): string {
+  const body = asRecord(frame.body);
+  const summary: Record<string, unknown> = {
+    cmd: frame.cmd ?? "",
+    reqId: frame.headers?.req_id ?? "",
+    msgtype: typeof body.msgtype === "string" ? body.msgtype : undefined,
+  };
+  const stream = asRecord(body.stream);
+  if (Object.keys(stream).length > 0) {
+    const msgItems = Array.isArray(stream.msg_item) ? stream.msg_item : [];
+    summary.stream = {
+      id: typeof stream.id === "string" ? stream.id : undefined,
+      finish: Boolean(stream.finish),
+      contentLength:
+        typeof stream.content === "string" ? Buffer.byteLength(stream.content, "utf8") : 0,
+      msgItemCount: msgItems.length,
+      msgItems: msgItems.map((item) => {
+        const msgItem = asRecord(item);
+        const image = asRecord(msgItem.image);
+        return {
+          msgtype: typeof msgItem.msgtype === "string" ? msgItem.msgtype : undefined,
+          base64Length:
+            typeof image.base64 === "string" ? image.base64.length : undefined,
+          md5: typeof image.md5 === "string" ? image.md5 : undefined,
+        };
+      }),
+    };
+  }
+  return JSON.stringify(summary);
+}
+
 function createSdkLogger(logger: Logger) {
   return {
     debug(message: string, ...args: unknown[]) {
@@ -180,11 +216,13 @@ function buildHeaders(reqId: string): { headers: { req_id: string } } {
 async function sendSdkReplyFrame(params: {
   client: WSClient;
   frame: WecomWsFrame;
+  logger: Logger;
 }): Promise<void> {
   const reqId = String(params.frame.headers?.req_id ?? "").trim();
   if (!reqId) {
     throw new Error("WeCom ws reply frame missing req_id");
   }
+  params.logger.debug(`[wecom] ws reply frame: ${summarizeWecomReplyFrame(params.frame)}`);
   const response = await params.client.reply(
     buildHeaders(reqId),
     (params.frame.body ?? {}) as Record<string, unknown>,
@@ -325,6 +363,7 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
           await sendSdkReplyFrame({
             client,
             frame: replyFrame,
+            logger,
           });
           setStatus?.({
             accountId: account.accountId,
@@ -354,6 +393,25 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
               to: callback.target,
               chunk: text,
             });
+            setStatus?.({
+              accountId: account.accountId,
+              mode: "ws",
+              lastOutboundAt: Date.now(),
+            });
+          },
+          onRichChunk: async (chunk) => {
+            const appended = await appendWecomWsActiveStreamReply({
+              accountId: account.accountId,
+              to: callback.target,
+              chunk: chunk.text,
+              msgItems: chunk.msgItems,
+            });
+            if (!appended.accepted) return;
+            if (chunk.msgItems.length > appended.appendedMsgItems) {
+              logger.warn(
+                `wecom ws native image items dropped: accepted=${appended.appendedMsgItems}, requested=${chunk.msgItems.length}`
+              );
+            }
             setStatus?.({
               accountId: account.accountId,
               mode: "ws",
@@ -441,6 +499,7 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
             await sendSdkReplyFrame({
               client,
               frame: replyFrame,
+              logger,
             });
             setStatus?.({
               accountId: account.accountId,

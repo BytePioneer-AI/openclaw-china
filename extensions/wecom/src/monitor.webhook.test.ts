@@ -3,6 +3,8 @@ import { Socket } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@wecom/aibot-node-sdk", async () => await import("./test-sdk-mock.js"));
+
 import { wecomPlugin } from "./channel.js";
 import { type PluginConfig } from "./config.js";
 import { computeWecomMsgSignature, decryptWecomEncrypted, encryptWecomPlaintext } from "./crypto.js";

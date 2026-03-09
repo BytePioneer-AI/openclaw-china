@@ -48,5 +48,23 @@ describe("resolveWecomAccount", () => {
     expect(account.heartbeatIntervalMs).toBe(DEFAULT_WECOM_WS_HEARTBEAT_MS);
     expect(account.reconnectInitialDelayMs).toBe(DEFAULT_WECOM_WS_RECONNECT_INITIAL_MS);
     expect(account.reconnectMaxDelayMs).toBe(DEFAULT_WECOM_WS_RECONNECT_MAX_MS);
+    expect(account.wsImageReplyMode).toBe("native");
+  });
+
+  it("resolves ws image reply mode override", () => {
+    const account = resolveWecomAccount({
+      cfg: {
+        channels: {
+          wecom: {
+            mode: "ws",
+            botId: "bot-123",
+            secret: "secret-xyz",
+            wsImageReplyMode: "markdown-url",
+          },
+        },
+      },
+    });
+
+    expect(account.wsImageReplyMode).toBe("markdown-url");
   });
 });

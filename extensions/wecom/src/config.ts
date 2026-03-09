@@ -8,6 +8,7 @@ import type {
   WecomDmPolicy,
   WecomGroupPolicy,
   WecomTransportMode,
+  WecomWsImageReplyMode,
 } from "./types.js";
 
 /** 默认账户 ID */
@@ -32,6 +33,7 @@ const WecomAccountSchema = z.object({
   reconnectInitialDelayMs: z.number().int().positive().optional(),
   reconnectMaxDelayMs: z.number().int().positive().optional(),
   publicBaseUrl: z.string().optional(),
+  wsImageReplyMode: z.enum(["native", "markdown-url"]).optional(),
   welcomeText: z.string().optional(),
   dmPolicy: z.enum(["open", "pairing", "allowlist", "disabled"]).optional(),
   allowFrom: z.array(z.string()).optional(),
@@ -66,6 +68,7 @@ export const WecomConfigJsonSchema = {
       reconnectInitialDelayMs: { type: "integer", minimum: 1 },
       reconnectMaxDelayMs: { type: "integer", minimum: 1 },
       publicBaseUrl: { type: "string" },
+      wsImageReplyMode: { type: "string", enum: ["native", "markdown-url"] },
       welcomeText: { type: "string" },
       dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
       allowFrom: { type: "array", items: { type: "string" } },
@@ -93,6 +96,7 @@ export const WecomConfigJsonSchema = {
             reconnectInitialDelayMs: { type: "integer", minimum: 1 },
             reconnectMaxDelayMs: { type: "integer", minimum: 1 },
             publicBaseUrl: { type: "string" },
+            wsImageReplyMode: { type: "string", enum: ["native", "markdown-url"] },
             welcomeText: { type: "string" },
             dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
             allowFrom: { type: "array", items: { type: "string" } },
@@ -128,6 +132,10 @@ export function normalizeAccountId(raw?: string | null): string {
 
 function normalizeMode(raw?: string | null): WecomTransportMode {
   return raw === "ws" ? "ws" : "webhook";
+}
+
+function normalizeWsImageReplyMode(raw?: string | null): WecomWsImageReplyMode {
+  return raw === "markdown-url" ? "markdown-url" : "native";
 }
 
 function listConfiguredAccountIds(cfg: PluginConfig): string[] {
@@ -180,6 +188,7 @@ export function resolveWecomAccount(params: { cfg: PluginConfig; accountId?: str
   const wsUrl = merged.wsUrl?.trim() || DEFAULT_WECOM_WS_URL;
   const publicBaseUrl =
     merged.publicBaseUrl?.trim() || (isDefaultAccount ? process.env.WECOM_PUBLIC_BASE_URL?.trim() : undefined) || undefined;
+  const wsImageReplyMode = normalizeWsImageReplyMode(merged.wsImageReplyMode);
   const heartbeatIntervalMs = merged.heartbeatIntervalMs ?? DEFAULT_WECOM_WS_HEARTBEAT_MS;
   const reconnectInitialDelayMs = merged.reconnectInitialDelayMs ?? DEFAULT_WECOM_WS_RECONNECT_INITIAL_MS;
   const reconnectMaxDelayMs = merged.reconnectMaxDelayMs ?? DEFAULT_WECOM_WS_RECONNECT_MAX_MS;
@@ -201,6 +210,7 @@ export function resolveWecomAccount(params: { cfg: PluginConfig; accountId?: str
     reconnectInitialDelayMs,
     reconnectMaxDelayMs,
     publicBaseUrl,
+    wsImageReplyMode,
     config: merged,
   };
 }

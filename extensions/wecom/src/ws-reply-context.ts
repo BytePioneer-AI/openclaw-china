@@ -1,5 +1,6 @@
 import type { WecomWsFrame } from "./ws-protocol.js";
 import { buildWecomWsRespondMessageCommand, buildWecomWsUpdateTemplateCardCommand, createWecomWsStreamId } from "./ws-protocol.js";
+import { WECOM_REPLY_MSG_ITEM_LIMIT, type WecomReplyMsgItem } from "./ws-media.js";
 
 type WsSendFrame = (frame: WecomWsFrame) => Promise<void>;
 type WsEventKind = "template_card_event" | "enter_chat" | "feedback_event";
@@ -11,6 +12,8 @@ type WsMessageContext = {
   streamId: string;
   createdSeq: number;
   content: string;
+  msgItems: WecomReplyMsgItem[];
+  pendingAutoImagePaths: string[];
   createdAt: number;
   updatedAt: number;
   sessionKey?: string;
@@ -44,6 +47,11 @@ const messageByTarget = new Map<string, Set<string>>();
 const eventByTarget = new Map<string, Set<string>>();
 const finishTimers = new Map<string, NodeJS.Timeout>();
 let nextMessageContextSeq = 0;
+
+export type WecomWsAppendResult = {
+  accepted: boolean;
+  appendedMsgItems: number;
+};
 
 function appendStreamSnapshotContent(current: string, chunk: string): string {
   if (!current.trim()) return chunk;
@@ -247,6 +255,8 @@ export function registerWecomWsMessageContext(params: {
     streamId: params.streamId?.trim() || createWecomWsStreamId(),
     createdSeq: ++nextMessageContextSeq,
     content: "",
+    msgItems: [],
+    pendingAutoImagePaths: [],
     createdAt: now(),
     updatedAt: now(),
     started: false,
@@ -312,26 +322,103 @@ export async function appendWecomWsActiveStreamChunk(params: {
   sessionKey?: string;
   runId?: string;
 }): Promise<boolean> {
+  const result = await appendWecomWsActiveStreamReply({
+    accountId: params.accountId,
+    to: params.to,
+    chunk: params.chunk,
+    sessionKey: params.sessionKey,
+    runId: params.runId,
+  });
+  return result.accepted;
+}
+
+export function registerWecomWsPendingAutoImagePaths(params: {
+  accountId: string;
+  to: string;
+  imagePaths: string[];
+  sessionKey?: string;
+  runId?: string;
+}): number {
   const context = findMessageContext(params);
-  if (!context) return false;
+  if (!context) return 0;
+  const seen = new Set(context.pendingAutoImagePaths.map((entry) => entry.trim()).filter(Boolean));
+  let added = 0;
+  for (const raw of params.imagePaths) {
+    const imagePath = String(raw ?? "").trim();
+    if (!imagePath || seen.has(imagePath)) continue;
+    context.pendingAutoImagePaths.push(imagePath);
+    seen.add(imagePath);
+    added += 1;
+  }
+  if (added > 0) {
+    context.updatedAt = now();
+  }
+  return added;
+}
+
+export function consumeWecomWsPendingAutoImagePaths(params: {
+  accountId: string;
+  to: string;
+  sessionKey?: string;
+  runId?: string;
+}): string[] {
+  const context = findMessageContext(params);
+  if (!context || context.pendingAutoImagePaths.length === 0) return [];
+  const imagePaths = context.pendingAutoImagePaths.slice();
+  context.pendingAutoImagePaths = [];
+  context.updatedAt = now();
+  return imagePaths;
+}
+
+export async function appendWecomWsActiveStreamReply(params: {
+  accountId: string;
+  to: string;
+  chunk?: string;
+  msgItems?: WecomReplyMsgItem[];
+  sessionKey?: string;
+  runId?: string;
+}): Promise<WecomWsAppendResult> {
+  const context = findMessageContext(params);
+  if (!context) {
+    return {
+      accepted: false,
+      appendedMsgItems: 0,
+    };
+  }
   const chunk = String(params.chunk ?? "");
-  if (!chunk.trim()) return true;
+  const rawMsgItems = Array.isArray(params.msgItems) ? params.msgItems : [];
+  const remainingMsgItemSlots = Math.max(0, WECOM_REPLY_MSG_ITEM_LIMIT - context.msgItems.length);
+  const acceptedMsgItems = remainingMsgItemSlots > 0 ? rawMsgItems.slice(0, remainingMsgItemSlots) : [];
+  if (!chunk.trim() && acceptedMsgItems.length === 0) {
+    return {
+      accepted: true,
+      appendedMsgItems: 0,
+    };
+  }
   const key = messageKey(context.accountId, context.reqId);
   clearFinishTimer(key);
   await enqueue(context, async () => {
-    context.content = appendStreamSnapshotContent(context.content, chunk);
-    await context.send(
-      buildWecomWsRespondMessageCommand({
-        reqId: context.reqId,
-        streamId: context.streamId,
-        content: context.content,
-        finish: false,
-      })
-    );
-    context.started = true;
+    if (acceptedMsgItems.length > 0) {
+      context.msgItems.push(...acceptedMsgItems);
+    }
+    if (chunk.trim()) {
+      context.content = appendStreamSnapshotContent(context.content, chunk);
+      await context.send(
+        buildWecomWsRespondMessageCommand({
+          reqId: context.reqId,
+          streamId: context.streamId,
+          content: context.content,
+          finish: false,
+        })
+      );
+      context.started = true;
+    }
     context.updatedAt = now();
   });
-  return true;
+  return {
+    accepted: true,
+    appendedMsgItems: acceptedMsgItems.length,
+  };
 }
 
 export function scheduleWecomWsMessageContextFinish(params: {
@@ -364,7 +451,7 @@ export async function finishWecomWsMessageContext(params: {
         ? `${context.content}\n\n${errorMessage}`
         : errorMessage
       : context.content;
-    const sendFinish = context.started || Boolean(finalContent);
+    const sendFinish = context.started || Boolean(finalContent) || context.msgItems.length > 0;
     if (sendFinish) {
       await context.send(
         buildWecomWsRespondMessageCommand({
@@ -372,6 +459,7 @@ export async function finishWecomWsMessageContext(params: {
           streamId: context.streamId,
           content: finalContent || undefined,
           finish: true,
+          msgItems: context.msgItems,
         })
       );
     }

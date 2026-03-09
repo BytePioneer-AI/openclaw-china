@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   appendWecomWsActiveStreamChunk,
+  appendWecomWsActiveStreamReply,
   bindWecomWsRouteContext,
   clearWecomWsReplyContextsForAccount,
+  consumeWecomWsPendingAutoImagePaths,
   finishWecomWsMessageContext,
   registerWecomWsEventContext,
   registerWecomWsMessageContext,
+  registerWecomWsPendingAutoImagePaths,
   sendWecomWsActiveTemplateCard,
 } from "./ws-reply-context.js";
 
@@ -181,6 +184,103 @@ describe("wecom ws reply context", () => {
         },
       },
     });
+  });
+
+  it("stores image msg items and emits them only on the final frame", async () => {
+    const sent: unknown[] = [];
+    registerWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-image",
+      to: "user:alice",
+      send: async (frame) => {
+        sent.push(frame);
+      },
+      streamId: "stream-image",
+    });
+
+    await expect(
+      appendWecomWsActiveStreamReply({
+        accountId: "acc-1",
+        to: "user:alice",
+        chunk: "caption",
+        msgItems: [
+          {
+            msgtype: "image",
+            image: {
+              base64: "abc",
+              md5: "def",
+            },
+          },
+        ],
+      })
+    ).resolves.toEqual({
+      accepted: true,
+      appendedMsgItems: 1,
+    });
+
+    await finishWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-image",
+    });
+
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-image",
+          finish: false,
+          content: "caption",
+        },
+      },
+    });
+    expect(sent[1]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-image",
+          finish: true,
+          content: "caption",
+          msg_item: [
+            {
+              msgtype: "image",
+              image: {
+                base64: "abc",
+                md5: "def",
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it("stores pending auto image paths and consumes them once", () => {
+    registerWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-auto-image",
+      to: "user:alice",
+      send: async () => undefined,
+      streamId: "stream-auto-image",
+    });
+
+    const added = registerWecomWsPendingAutoImagePaths({
+      accountId: "acc-1",
+      to: "user:alice",
+      imagePaths: ["/tmp/a.png", "/tmp/a.png", "/tmp/b.png"],
+    });
+
+    expect(added).toBe(2);
+    expect(
+      consumeWecomWsPendingAutoImagePaths({
+        accountId: "acc-1",
+        to: "user:alice",
+      })
+    ).toEqual(["/tmp/a.png", "/tmp/b.png"]);
+    expect(
+      consumeWecomWsPendingAutoImagePaths({
+        accountId: "acc-1",
+        to: "user:alice",
+      })
+    ).toEqual([]);
   });
 
   it("prefers the newest callback context for target fallback instead of the most recently updated old stream", async () => {

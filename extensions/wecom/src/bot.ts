@@ -9,6 +9,7 @@ import {
   checkGroupPolicy,
   createLogger,
   extractMediaFromText,
+  normalizeLocalPath,
   type Logger,
   resolveExtension,
 } from "@openclaw-china/shared";
@@ -33,11 +34,19 @@ import {
   registerResponseUrl,
   registerTempLocalMedia,
 } from "./outbound-reply.js";
+import { buildWecomNativeReplyImageItem, WECOM_REPLY_MSG_ITEM_LIMIT, type WecomReplyMsgItem } from "./ws-media.js";
+import { consumeWecomWsPendingAutoImagePaths, registerWecomWsPendingAutoImagePaths } from "./ws-reply-context.js";
 
 export type WecomDispatchHooks = {
   onRouteContext?: (context: { sessionKey?: string; runId?: string }) => void;
   onChunk: (text: string) => void | Promise<void>;
+  onRichChunk?: (chunk: WecomWsReplyChunk) => void | Promise<void>;
   onError?: (err: unknown) => void;
+};
+
+export type WecomWsReplyChunk = {
+  text: string;
+  msgItems: WecomReplyMsgItem[];
 };
 
 function resolveOpenClawStateDir(): string {
@@ -69,6 +78,16 @@ function detectMediaTypeByPath(mediaPath: string): "image" | "file" {
   return "file";
 }
 
+function resolveExistingLocalMediaPath(source: string): string | null {
+  const raw = source.trim();
+  if (!raw || isHttpUrl(raw)) return null;
+
+  const normalized = normalizeLocalPath(raw);
+  const resolved = path.isAbsolute(normalized) ? normalized : path.resolve(normalized);
+  if (!fs.existsSync(resolved)) return null;
+  return resolved;
+}
+
 async function buildPublicMediaUrlForStream(params: {
   accountId: string;
   source: string;
@@ -84,8 +103,8 @@ async function buildPublicMediaUrlForStream(params: {
     };
   }
 
-  if (!path.isAbsolute(raw)) return null;
-  if (!fs.existsSync(raw)) return null;
+  const localPath = resolveExistingLocalMediaPath(raw);
+  if (!localPath) return null;
 
   const baseUrl = getAccountPublicBaseUrl(params.accountId);
   if (!baseUrl) {
@@ -94,8 +113,8 @@ async function buildPublicMediaUrlForStream(params: {
   }
 
   const temp = await registerTempLocalMedia({
-    filePath: raw,
-    fileName: path.basename(raw),
+    filePath: localPath,
+    fileName: path.basename(localPath),
   });
   const url = buildTempMediaUrl({
     baseUrl,
@@ -109,14 +128,11 @@ async function buildPublicMediaUrlForStream(params: {
   };
 }
 
-async function normalizeChunkForWecomStream(params: {
-  accountId: string;
+function collectWecomStreamSources(params: {
   text: string;
   payloadMediaUrls?: string[];
-  log?: Logger;
-}): Promise<string> {
-  const rawText = String(params.text ?? "");
-  const parseResult = extractMediaFromText(rawText, {
+}): { baseText: string; sources: string[] } {
+  const parseResult = extractMediaFromText(params.text, {
     removeFromText: true,
     checkExists: true,
     existsSync: (p: string) => fs.existsSync(p),
@@ -126,11 +142,6 @@ async function normalizeChunkForWecomStream(params: {
     parseBarePaths: true,
     parseMarkdownLinks: true,
   });
-
-  const parts: string[] = [];
-  if (parseResult.text.trim()) {
-    parts.push(parseResult.text.trim());
-  }
 
   const sourceSet = new Set<string>();
   for (const media of parseResult.all) {
@@ -142,7 +153,29 @@ async function normalizeChunkForWecomStream(params: {
     if (source) sourceSet.add(source);
   }
 
-  for (const source of sourceSet) {
+  return {
+    baseText: parseResult.text.trim(),
+    sources: [...sourceSet],
+  };
+}
+
+async function normalizeChunkForWecomStream(params: {
+  accountId: string;
+  text: string;
+  payloadMediaUrls?: string[];
+  log?: Logger;
+}): Promise<string> {
+  const rawText = String(params.text ?? "");
+  const { baseText, sources } = collectWecomStreamSources({
+    text: rawText,
+    payloadMediaUrls: params.payloadMediaUrls,
+  });
+  const parts: string[] = [];
+  if (baseText) {
+    parts.push(baseText);
+  }
+
+  for (const source of sources) {
     try {
       const mapped = await buildPublicMediaUrlForStream({
         accountId: params.accountId,
@@ -165,6 +198,61 @@ async function normalizeChunkForWecomStream(params: {
   }
 
   return parts.join("\n\n").trim();
+}
+
+export async function normalizeChunkForWecomWsStream(params: {
+  accountId: string;
+  text: string;
+  payloadMediaUrls?: string[];
+  log?: Logger;
+}): Promise<WecomWsReplyChunk> {
+  const rawText = String(params.text ?? "");
+  const { baseText, sources } = collectWecomStreamSources({
+    text: rawText,
+    payloadMediaUrls: params.payloadMediaUrls,
+  });
+
+  const parts: string[] = [];
+  const msgItems: WecomReplyMsgItem[] = [];
+  if (baseText) {
+    parts.push(baseText);
+  }
+
+  for (const source of sources) {
+    try {
+      const nativeMsgItem = await buildWecomNativeReplyImageItem({
+        source,
+        log: params.log,
+      });
+      if (nativeMsgItem && msgItems.length < WECOM_REPLY_MSG_ITEM_LIMIT) {
+        msgItems.push(nativeMsgItem);
+        continue;
+      }
+
+      const mapped = await buildPublicMediaUrlForStream({
+        accountId: params.accountId,
+        source,
+        log: params.log,
+      });
+      if (!mapped) {
+        parts.push(source);
+        continue;
+      }
+      if (mapped.mediaType === "image") {
+        parts.push(`![](${mapped.url})`);
+      } else {
+        parts.push(`[下载文件](${mapped.url})`);
+      }
+    } catch (err) {
+      params.log?.warn?.(`[wecom] failed to normalize ws media source: ${String(err)}`);
+      parts.push(source);
+    }
+  }
+
+  return {
+    text: parts.join("\n\n").trim(),
+    msgItems,
+  };
 }
 
 export function extractWecomContent(msg: WecomInboundMessage): string {
@@ -430,6 +518,12 @@ export async function dispatchWecomMessage(params: {
     ctxPayload.SenderId = senderId;
     ctxPayload.SenderName = senderId;
     ctxPayload.ConversationLabel = fromLabel;
+    if (mediaResult.imagePaths.length > 0) {
+      ctxPayload.MediaPath = mediaResult.imagePaths[0];
+      ctxPayload.MediaPaths = mediaResult.imagePaths.slice();
+      ctxPayload.MediaUrl = mediaResult.imagePaths[0];
+      ctxPayload.MediaUrls = mediaResult.imagePaths.slice();
+    }
 
     const contextRunId = (() => {
       const candidates = ["RunId", "runId", "AgentRunId", "agentRunId"] as const;
@@ -439,6 +533,15 @@ export async function dispatchWecomMessage(params: {
       }
       return undefined;
     })();
+    if (account.mode === "ws" && mediaResult.imagePaths.length > 0) {
+      registerWecomWsPendingAutoImagePaths({
+        accountId: account.accountId,
+        to: stableTo,
+        sessionKey: route.sessionKey,
+        runId: contextRunId,
+        imagePaths: mediaResult.imagePaths,
+      });
+    }
     hooks.onRouteContext?.({
       sessionKey: route.sessionKey,
       runId: contextRunId,
@@ -485,7 +588,17 @@ export async function dispatchWecomMessage(params: {
       dispatcherOptions: {
         deliver: async (payload: { text?: string; mediaUrl?: string; mediaUrls?: string[] }) => {
           const rawText = payload.text ?? "";
+          const autoImagePaths =
+            account.mode === "ws"
+              ? consumeWecomWsPendingAutoImagePaths({
+                  accountId: account.accountId,
+                  to: stableTo,
+                  sessionKey: route.sessionKey,
+                  runId: contextRunId,
+                })
+              : [];
           const payloadMediaUrls = [
+            ...autoImagePaths,
             ...(Array.isArray(payload.mediaUrls) ? payload.mediaUrls : []),
             ...(payload.mediaUrl ? [payload.mediaUrl] : []),
           ]
@@ -497,6 +610,17 @@ export async function dispatchWecomMessage(params: {
           const converted = channel.text?.convertMarkdownTables && tableMode
             ? channel.text.convertMarkdownTables(rawText, tableMode)
             : rawText;
+          if (hooks.onRichChunk) {
+            const normalized = await normalizeChunkForWecomWsStream({
+              accountId: account.accountId,
+              text: converted,
+              payloadMediaUrls,
+              log: logger,
+            });
+            if (!normalized.text.trim() && normalized.msgItems.length === 0) return;
+            await hooks.onRichChunk(normalized);
+            return;
+          }
           const normalized = await normalizeChunkForWecomStream({
             accountId: account.accountId,
             text: converted,
@@ -712,8 +836,9 @@ export async function processMediaInMessage(params: {
   msg: WecomInboundMessage;
   encodingAESKey?: string;
   log?: Logger;
-}): Promise<{ text: string }> {
+}): Promise<{ text: string; imagePaths: string[] }> {
   const { msg, encodingAESKey, log } = params;
+  const imagePaths: string[] = [];
 
   const msgtype = String(msg.msgtype ?? "").toLowerCase();
   const resolveMediaKey = (value: unknown): string | undefined => {
@@ -750,6 +875,7 @@ export async function processMediaInMessage(params: {
                 log,
               });
               processedParts.push(`[image] ${mediaFile.path}`);
+              imagePaths.push(mediaFile.path);
             } catch (err) {
               log?.error?.(`[wecom] mixed消息中图片下载解密失败: ${err}`);
               processedParts.push(`[image] ${url}`);
@@ -782,9 +908,10 @@ export async function processMediaInMessage(params: {
 
       return {
         text: processedParts.filter(p => Boolean(p && p.trim())).join("\n"),
+        imagePaths,
       };
     }
-    return { text: extractWecomContent(msg) };
+    return { text: extractWecomContent(msg), imagePaths };
   }
 
   // 处理图片消息
@@ -803,10 +930,11 @@ export async function processMediaInMessage(params: {
         });
         return {
           text: `[image] ${mediaFile.path}`,
+          imagePaths: [mediaFile.path],
         };
       } catch (err) {
         log?.error?.(`[wecom] 图片下载解密失败: ${err}`);
-        return { text: extractWecomContent(msg) };
+        return { text: extractWecomContent(msg), imagePaths };
       }
     }
   }
@@ -828,10 +956,11 @@ export async function processMediaInMessage(params: {
         });
         return {
           text: `[file] ${mediaFile.path}`,
+          imagePaths,
         };
       } catch (err) {
         log?.error?.(`[wecom] 文件下载解密失败: ${err}`);
-        return { text: extractWecomContent(msg) };
+        return { text: extractWecomContent(msg), imagePaths };
       }
     }
   }
@@ -852,13 +981,14 @@ export async function processMediaInMessage(params: {
         });
         return {
           text: `[voice] ${mediaFile.path}`,
+          imagePaths,
         };
       } catch (err) {
         log?.error?.(`[wecom] 语音下载解密失败: ${err}`);
-        return { text: extractWecomContent(msg) };
+        return { text: extractWecomContent(msg), imagePaths };
       }
     }
   }
   // 其他消息类型直接返回原始文本
-  return { text: extractWecomContent(msg) };
+  return { text: extractWecomContent(msg), imagePaths };
 }

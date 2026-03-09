@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import type { ResolvedWecomAccount, WecomInboundMessage } from "./types.js";
 import { DEFAULT_WECOM_WS_URL } from "./config.js";
+import type { WecomReplyMsgItem } from "./ws-media.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -85,6 +86,7 @@ export function buildWecomWsRespondMessageCommand(params: {
   streamId: string;
   content?: string;
   finish: boolean;
+  msgItems?: WecomReplyMsgItem[];
 }): WecomWsFrame {
   const body: JsonRecord = {
     msgtype: "stream",
@@ -96,6 +98,9 @@ export function buildWecomWsRespondMessageCommand(params: {
   const trimmed = params.content?.trim();
   if (trimmed) {
     (body.stream as JsonRecord).content = trimmed;
+  }
+  if (params.finish && Array.isArray(params.msgItems) && params.msgItems.length > 0) {
+    (body.stream as JsonRecord).msg_item = params.msgItems;
   }
   return {
     cmd: "aibot_respond_msg",

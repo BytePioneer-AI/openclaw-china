@@ -19,6 +19,7 @@ import {
 } from "./config.js";
 import { appendWecomActiveStreamChunk, registerWecomWebhookTarget } from "./monitor.js";
 import { setWecomRuntime } from "./runtime.js";
+import { normalizeChunkForWecomWsStream } from "./bot.js";
 import {
   buildTempMediaUrl,
   consumeResponseUrl,
@@ -26,13 +27,19 @@ import {
   registerTempLocalMedia,
   setAccountPublicBaseUrl,
 } from "./outbound-reply.js";
-import { appendWecomWsActiveStreamChunk, sendWecomWsActiveTemplateCard } from "./ws-reply-context.js";
+import {
+  appendWecomWsActiveStreamChunk,
+  appendWecomWsActiveStreamReply,
+  consumeWecomWsPendingAutoImagePaths,
+  sendWecomWsActiveTemplateCard,
+} from "./ws-reply-context.js";
 import {
   sendWecomWsProactiveMarkdown,
   sendWecomWsProactiveTemplateCard,
   startWecomWsGateway,
   stopWecomWsGatewayForAccount,
 } from "./ws-gateway.js";
+import { buildWecomNativeReplyImageItem } from "./ws-media.js";
 
 type ParsedDirectTarget = {
   accountId?: string;
@@ -162,22 +169,52 @@ async function appendActiveChunk(params: {
   sessionKey?: string;
   runId?: string;
 }): Promise<boolean> {
-  if (params.account.mode === "ws") {
-    return appendWecomWsActiveStreamChunk({
-      accountId: params.account.accountId,
-      to: params.to,
-      chunk: params.chunk,
-      sessionKey: params.sessionKey,
-      runId: params.runId,
-    });
-  }
-  return appendWecomActiveStreamChunk({
-    accountId: params.account.accountId,
+  const result = await appendActiveReply({
+    account: params.account,
     to: params.to,
     chunk: params.chunk,
     sessionKey: params.sessionKey,
     runId: params.runId,
   });
+  return result.accepted;
+}
+
+async function appendActiveReply(params: {
+  account: ResolvedWecomAccount;
+  to: string;
+  chunk?: string;
+  msgItems?: import("./ws-media.js").WecomReplyMsgItem[];
+  sessionKey?: string;
+  runId?: string;
+}): Promise<{ accepted: boolean; appendedMsgItems: number }> {
+  if (params.account.mode === "ws") {
+    return appendWecomWsActiveStreamReply({
+      accountId: params.account.accountId,
+      to: params.to,
+      chunk: params.chunk,
+      msgItems: params.msgItems,
+      sessionKey: params.sessionKey,
+      runId: params.runId,
+    });
+  }
+  const chunk = String(params.chunk ?? "");
+  if (!chunk.trim()) {
+    return {
+      accepted: false,
+      appendedMsgItems: 0,
+    };
+  }
+  const accepted = appendWecomActiveStreamChunk({
+    accountId: params.account.accountId,
+    to: params.to,
+    chunk,
+    sessionKey: params.sessionKey,
+    runId: params.runId,
+  });
+  return {
+    accepted,
+    appendedMsgItems: 0,
+  };
 }
 
 async function postWecomResponse(responseUrl: string, payload: unknown): Promise<void> {
@@ -431,6 +468,40 @@ export const wecomPlugin = {
         `[wecom] sendText stream context: runId=${streamContext.runId ?? "-"}, sessionKey=${streamContext.sessionKey ?? "-"}`
       );
       const replyTarget = resolveReplyTargetToken(parsed);
+      const autoImagePaths =
+        account.mode === "ws"
+          ? consumeWecomWsPendingAutoImagePaths({
+              accountId: account.accountId,
+              to: replyTarget,
+              sessionKey: streamContext.sessionKey,
+              runId: streamContext.runId,
+            })
+          : [];
+      if (account.mode === "ws" && autoImagePaths.length > 0) {
+        const normalized = await normalizeChunkForWecomWsStream({
+          accountId: account.accountId,
+          text: params.text,
+          payloadMediaUrls: autoImagePaths,
+        });
+        const streamAccepted = await appendActiveReply({
+          account,
+          to: replyTarget,
+          chunk: normalized.text,
+          msgItems: normalized.msgItems,
+          sessionKey: streamContext.sessionKey,
+          runId: streamContext.runId,
+        });
+        if (streamAccepted.accepted && (normalized.text.trim() || streamAccepted.appendedMsgItems > 0)) {
+          console.log(
+            `[wecom] sendText success (auto media attach): to=${replyTarget}, msgItems=${streamAccepted.appendedMsgItems}`
+          );
+          return {
+            channel: "wecom",
+            ok: true,
+            messageId: `stream:${Date.now()}`,
+          };
+        }
+      }
       const streamAccepted = await appendActiveChunk({
         account,
         to: replyTarget,
@@ -510,10 +581,52 @@ export const wecomPlugin = {
         };
       }
       console.log(
-        `[wecom] sendMedia stream context: runId=${streamContext.runId ?? "-"}, sessionKey=${streamContext.sessionKey ?? "-"}`
+        `[wecom] sendMedia stream context: runId=${streamContext.runId ?? "-"}, sessionKey=${streamContext.sessionKey ?? "-"}, wsImageReplyMode=${account.wsImageReplyMode}`
       );
 
       try {
+        const replyTarget = resolveReplyTargetToken(parsed);
+        if (account.mode === "ws") {
+          consumeWecomWsPendingAutoImagePaths({
+            accountId: account.accountId,
+            to: replyTarget,
+            sessionKey: streamContext.sessionKey,
+            runId: streamContext.runId,
+          });
+        }
+        if (account.mode === "ws" && account.wsImageReplyMode === "native" && !isHttpUrl(params.mediaUrl)) {
+          const localPath = normalizeLocalPath(params.mediaUrl);
+          await ensureReadableFile(localPath);
+          const nativeMsgItem = await buildWecomNativeReplyImageItem({ source: localPath });
+          if (nativeMsgItem) {
+            const nativeAccepted = await appendActiveReply({
+              account,
+              to: replyTarget,
+              msgItems: [nativeMsgItem],
+              sessionKey: streamContext.sessionKey,
+              runId: streamContext.runId,
+            });
+            if (nativeAccepted.accepted && nativeAccepted.appendedMsgItems > 0) {
+              const caption = params.text?.trim();
+              if (caption) {
+                await appendActiveChunk({
+                  account,
+                  to: replyTarget,
+                  chunk: caption,
+                  sessionKey: streamContext.sessionKey,
+                  runId: streamContext.runId,
+                });
+              }
+              console.log(`[wecom] sendMedia success (native ws image): to=${replyTarget}`);
+              return {
+                channel: "wecom",
+                ok: true,
+                messageId: `stream:${Date.now()}`,
+              };
+            }
+          }
+        }
+
         let publicMediaUrl = params.mediaUrl.trim();
         if (!isHttpUrl(publicMediaUrl)) {
           const localPath = normalizeLocalPath(publicMediaUrl);
@@ -544,7 +657,6 @@ export const wecomPlugin = {
           mediaType,
           caption: params.text,
         });
-        const replyTarget = resolveReplyTargetToken(parsed);
         const streamAccepted = await appendActiveChunk({
           account,
           to: replyTarget,

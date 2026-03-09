@@ -1,6 +1,7 @@
 export type WecomDmPolicy = "open" | "pairing" | "allowlist" | "disabled";
 export type WecomGroupPolicy = "open" | "allowlist" | "disabled";
 export type WecomTransportMode = "webhook" | "ws";
+export type WecomWsImageReplyMode = "native" | "markdown-url";
 
 export type WecomAccountConfig = {
   name?: string;
@@ -18,6 +19,7 @@ export type WecomAccountConfig = {
   reconnectInitialDelayMs?: number;
   reconnectMaxDelayMs?: number;
   publicBaseUrl?: string;
+  wsImageReplyMode?: WecomWsImageReplyMode;
 
   welcomeText?: string;
 
@@ -50,6 +52,7 @@ export type ResolvedWecomAccount = {
   reconnectInitialDelayMs: number;
   reconnectMaxDelayMs: number;
   publicBaseUrl?: string;
+  wsImageReplyMode: WecomWsImageReplyMode;
   config: WecomAccountConfig;
 };
 

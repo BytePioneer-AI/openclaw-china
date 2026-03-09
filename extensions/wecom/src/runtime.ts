@@ -25,7 +25,7 @@ export interface PluginRuntime {
         ctx: unknown;
         cfg: unknown;
         dispatcherOptions: {
-          deliver: (payload: { text?: string }) => Promise<void>;
+          deliver: (payload: { text?: string; mediaUrl?: string; mediaUrls?: string[] }) => Promise<void>;
           onError?: (err: unknown, info: { kind: string }) => void;
         };
       }) => Promise<void>;

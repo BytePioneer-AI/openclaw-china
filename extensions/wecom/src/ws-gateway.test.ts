@@ -1,8 +1,10 @@
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
+
+vi.mock("@wecom/aibot-node-sdk", async () => await import("./test-sdk-mock.js"));
 
 import { resolveWecomAccount, type PluginConfig } from "./config.js";
 import { clearWecomRuntime } from "./runtime.js";

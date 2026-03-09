@@ -62,6 +62,44 @@ describe("wecom ws protocol", () => {
     });
 
     expect(
+      buildWecomWsRespondMessageCommand({
+        reqId: "req-1",
+        streamId: "stream-1",
+        content: "chunk",
+        finish: true,
+        msgItems: [
+          {
+            msgtype: "image",
+            image: {
+              base64: "abc",
+              md5: "def",
+            },
+          },
+        ],
+      })
+    ).toEqual({
+      cmd: "aibot_respond_msg",
+      headers: { req_id: "req-1" },
+      body: {
+        msgtype: "stream",
+        stream: {
+          id: "stream-1",
+          finish: true,
+          content: "chunk",
+          msg_item: [
+            {
+              msgtype: "image",
+              image: {
+                base64: "abc",
+                md5: "def",
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(
       buildWecomWsRespondWelcomeCommand({
         reqId: "req-2",
         content: "welcome",
