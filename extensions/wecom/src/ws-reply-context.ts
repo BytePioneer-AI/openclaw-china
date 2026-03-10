@@ -245,6 +245,7 @@ export function registerWecomWsMessageContext(params: {
   to: string;
   send: WsSendFrame;
   streamId?: string;
+  initialAck?: string;
 }): string {
   pruneContexts();
   const key = messageKey(params.accountId.trim(), params.reqId.trim());
@@ -266,6 +267,20 @@ export function registerWecomWsMessageContext(params: {
   };
   messageContexts.set(key, context);
   addTargetIndex(messageByTarget, targetKey(context.accountId, context.to), key);
+  if (params.initialAck) {
+    const ack = params.initialAck;
+    void enqueue(context, async () => {
+      await context.send(
+        buildWecomWsRespondMessageCommand({
+          reqId: context.reqId,
+          streamId: context.streamId,
+          content: ack,
+          finish: false,
+        })
+      );
+      context.started = true;
+    });
+  }
   return context.streamId;
 }
 

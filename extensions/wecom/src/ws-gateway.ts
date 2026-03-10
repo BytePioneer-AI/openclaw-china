@@ -359,6 +359,7 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
         accountId: account.accountId,
         reqId: callback.reqId,
         to: callback.target,
+        initialAck: "⏳",
         send: async (replyFrame) => {
           await sendSdkReplyFrame({
             client,
