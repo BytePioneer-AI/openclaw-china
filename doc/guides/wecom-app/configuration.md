@@ -18,11 +18,12 @@
 | 功能            | 智能机器人 (wecom) | 自建应用 (wecom-app) |
 | :-------------- | :----------------: | :------------------: |
 | 被动回复消息    |         ✅         |          ✅          |
-| 主动发送消息    |         ❌         |          ✅          |
+| 主动发送消息    |         ✅         |          ✅          |
 | 支持群聊        |         ✅         |          ❌          |
 | 需要企业认证    |         ❌         |          ❌          |
 | 需要 corpSecret |         ❌         |          ✅          |
 | 需要 IP 白名单  |         ❌         |          ✅          |
+| 图片/文件 | 出站文件不支持 | 出站任意类型；入站允许图片、音视频、定位、语音 |
 | 配置复杂度      |        简单        |         中等         |
 
 **推荐使用自建应用的场景**：
@@ -59,9 +60,13 @@
 3. OpenClaw 已安装并运行
 4. Node.js 和 pnpm（用于构建插件）
 
----
+### 步骤零. 注册并登录企业微信
 
-## 步骤零：安装 wecom-app 插件
+访问 <https://work.weixin.qq.com/>，按页面提示注册并进入管理后台。
+
+教程可参考此文档的【注册并登录企业微信】：https://github.com/BytePioneer-AI/openclaw-china/blob/main/doc/guides/wecom/configuration.md
+
+### 步骤零：安装 wecom-app 插件
 
 支持两种安装方式，按需选择：
 
@@ -76,13 +81,15 @@
 ```bash
 openclaw plugins install @openclaw-china/channels
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
 
-**仅安装 wecom-app 插件**
+**或 仅安装 wecom-app 插件**
 
 ```bash
 openclaw plugins install @openclaw-china/wecom-app
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
 
 ### 方式二：从源码安装（适合开发调试 / Windows 兼容）
@@ -93,45 +100,53 @@ openclaw china setup
 > BytePioneer-AI/openclaw-china 版本较新，建议用。
 
 ```bash
-cd ~/.openclaw/extensions
 git clone https://github.com/BytePioneer-AI/openclaw-china.git
-```
-
-2. 安装依赖并构建
-
-```bash
-cd ~/.openclaw/extensions/openclaw-china/extensions/wecom-app
+cd openclaw-china
 pnpm install
 pnpm build
-```
-
-3. 以链接模式安装到 OpenClaw
-
-```bash
-openclaw plugins install -l ~/.openclaw/extensions/openclaw-china/extensions/wecom-app
+openclaw plugins install -l ./packages/channels
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
-
-> `-l` 表示链接模式，修改源码后只需重启 Gateway 即可生效，无需重新安装。
 
 更新源码（后续升级）：
 
 ```bash
-cd ~/.openclaw/extensions/openclaw-china
 git pull origin main
 pnpm install
 pnpm build
 ```
 
+> 必须执行 `openclaw config set gateway.bind lan` 否则后续可能会出现 回调地址不通过 的错误
+
 ---
 
 ## 步骤一：创建自建应用
+
+请注意，我们一共需要下面这些数据：
+
+```
+"webhookPath": "/wecom-app", # 回调路径，默认即可
+"token": "xxx",
+"encodingAESKey": "xxx",
+"corpId": "xxx",  # 企业 ID
+"corpSecret": "xxx",
+"agentId": xxx
+```
 
 ### 1. 登录企业微信管理后台
 
 访问 [企业微信管理后台](https://work.weixin.qq.com/wework_admin/frame) 并登录。
 
-### 2. 创建应用
+### 2. 获取企业 ID
+
+1. 点击左侧菜单「我的企业」
+2. 在「企业信息」页面底部找到「企业 ID」
+3. 记录这个 ID（这就是 `corpId`）
+
+<img src="image/configuration/1770105784942.png" />
+
+### 3. 创建应用
 
 1. 点击左侧菜单「应用管理」
 2. 在「自建」区域点击「创建应用」
@@ -147,7 +162,7 @@ pnpm build
 
 4. 点击「创建应用」
 
-### 3. 获取应用凭证
+### 4. 获取应用凭证
 
 创建成功后，进入应用详情页，记录以下信息：
 
@@ -156,24 +171,13 @@ pnpm build
 
 <img src="image/configuration/1770105739884.png" />
 
-### 4. 获取企业 ID
 
-1. 点击左侧菜单「我的企业」
-2. 在「企业信息」页面底部找到「企业 ID」
-3. 记录这个 ID（这就是 `corpId`）
-
-<img src="image/configuration/1770105784942.png" />
 
 ---
 
 ## 步骤二：配置接收消息服务器
 
-### 1. 进入应用设置
-
-1. 在应用详情页，找到「接收消息」设置
-2. 点击「设置 API 接收」
-
-### 2. 填写服务器配置
+### 1. 填写服务器配置
 
 - **URL**：OpenClaw Gateway 的公网访问地址（企业微信会向这个地址发送消息回调）
 
@@ -186,23 +190,24 @@ pnpm build
 
   **说明**：
 
-  - **协议**：如果有域名和 SSL 证书，使用 `https://`；否则使用 `http://`
   - **域名/IP**：填写你服务器的公网域名或公网 IP 地址
   - **端口**：填写 OpenClaw Gateway 监听的端口（默认 `18789`）
   - **路径**：必须与配置文件中的 `webhookPath` 一致（默认 `/wecom-app`）
-
+  
   > 💡 **如何获取公网 IP**：在服务器上运行 `curl ifconfig.me` 或访问 [ifconfig.me](https://ifconfig.me)
   >
-- **Token**：自定义一个字符串，例如 `your-random-token`
-- **EncodingAESKey**：点击「随机获取」生成 43 位字符
 
 <img src="image/configuration/1770106232112.png" />
 
-> ⚠️ **重要**：先配置好 OpenClaw，再点击「保存」，否则验证会失败。
+> **⚠️ 重要：在这里你可以暂停并开始【步骤三】**
+>
+> 1. 回调必须先将Wecom-app的OpenClaw配置完毕，并且 OpenClaw处于运行状态。
+>
+> 2. 必须执行 `openclaw config set gateway.bind lan` 否则后续可能会出现 回调地址不通过 的错误
 
 <img src="image/configuration/1770106267509.png" />
 
-### 3. 配置 IP 白名单
+### 2. 配置 IP 白名单
 
 在应用详情页的「企业可信 IP」设置中，添加你服务器的公网 IP 地址。
 
@@ -528,27 +533,13 @@ ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 2. 确认 `webhookPath` 与后台 URL 路径一致
 3. 确认 `token` 和 `encodingAESKey` 与后台配置完全一致
 4. 确认服务器公网可访问（可用 `curl` 测试）
+5. `openclaw config set gateway.bind lan`
 
 ### Q: 消息接收成功但发送失败？
 
 1. 检查 `corpId`、`corpSecret`、`agentId` 是否正确
 2. 检查是否已配置 IP 白名单
 3. 查看 OpenClaw 日志获取详细错误信息
-
-### Q: 如何获取服务器 IP 地址？
-
-运行以下命令：
-
-```bash
-curl ifconfig.me
-```
-
-或查看 OpenClaw 发送消息的错误日志，企业微信会返回需要添加白名单的 IP。
-
-### Q: Token 和 EncodingAESKey 可以自己生成吗？
-
-- **Token**：可以是任意字符串
-- **EncodingAESKey**：必须是 43 位的 Base64 字符，建议使用企业微信后台的「随机获取」功能
 
 ---
 
