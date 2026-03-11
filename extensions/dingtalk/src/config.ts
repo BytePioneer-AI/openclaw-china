@@ -71,7 +71,7 @@ const DingtalkAccountSchema = z.object({
   longTaskNoticeDelayMs: z.number().int().min(0).optional().default(30000),
   
   /** 是否启用 AI Card 流式响应 */
-  enableAICard: z.boolean().optional().default(true),
+  enableAICard: z.boolean().optional().default(false),
 
   /** Gateway auth token（Bearer） */
   gatewayToken: z.string().optional(),

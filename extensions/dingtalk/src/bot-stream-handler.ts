@@ -148,7 +148,7 @@ function processDingtalkInbound(params: {
       accountId,
       log: (msg: string) => logger.info(msg.replace(/^\[dingtalk\]\s*/, "")),
       error: (msg: string) => logger.error(msg.replace(/^\[dingtalk\]\s*/, "")),
-      enableAICard: dingtalkCfg?.enableAICard ?? true,
+      enableAICard: dingtalkCfg?.enableAICard ?? false,
     }).catch((err) => {
       logger.error(`error handling message: ${String(err)}`);
     });

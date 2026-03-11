@@ -350,7 +350,7 @@ export const dingtalkOnboardingAdapter = {
     // AI Card 配置
     const enableAICard = await params.prompter.confirm({
       message: "是否启用 AI Card 流式响应？（直接回车使用推荐值）",
-      initialValue: true,
+      initialValue: false,
     });
     next = {
       ...next,
