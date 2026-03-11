@@ -35,7 +35,7 @@ import {
 } from "./api.js";
 
 export type WecomAppDispatchHooks = {
-  onChunk: (text: string) => void;
+  onChunk: (text: string) => void | Promise<void>;
   onError?: (err: unknown) => void;
 };
 
@@ -488,7 +488,7 @@ export async function dispatchWecomAppMessage(params: {
 
   // 与 qqbot 对齐：ASR 出错时主动提示用户并终止后续 agent 分发。
   if (asrErrorMessage) {
-    hooks.onChunk(buildVoiceASRFallbackReply(asrErrorMessage));
+    await hooks.onChunk(buildVoiceASRFallbackReply(asrErrorMessage));
     await cleanup();
     return;
   }
@@ -649,7 +649,7 @@ export async function dispatchWecomAppMessage(params: {
         const converted = channel.text?.convertMarkdownTables && tableMode
           ? channel.text.convertMarkdownTables(rawText, tableMode)
           : rawText;
-        hooks.onChunk(converted);
+        await hooks.onChunk(converted);
       },
       onError: (err: unknown, info: { kind: string }) => {
         hooks.onError?.(err);

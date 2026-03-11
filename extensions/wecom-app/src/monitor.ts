@@ -122,6 +122,12 @@ function splitMessageByBytes(text: string, maxBytes = 2048): string[] {
   return result;
 }
 
+function splitActiveTextChunks(text: string): string[] {
+  const formatted = stripMarkdown(text).trim();
+  if (!formatted) return [];
+  return splitMessageByBytes(formatted, 2048).filter((chunk) => chunk.trim());
+}
+
 function jsonOk(res: ServerResponse, body: unknown): void {
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -707,26 +713,86 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
   // 解析发送者信息用于后续主动发送
   const senderId = msg.from?.userid?.trim() ?? (msg as { FromUserName?: string }).FromUserName?.trim();
   const chatid = msg.chatid?.trim();
+  const activeTarget = chatid ? { chatid } : senderId ? { userId: senderId } : undefined;
 
   if (core) {
     const state = streams.get(streamId);
     if (state) state.started = true;
+    let chunkFlush = Promise.resolve();
+    let activeChunkCount = 0;
+
+    const markStreamFinished = async (err?: unknown): Promise<void> => {
+      await chunkFlush.catch(() => undefined);
+      const current = streams.get(streamId);
+      if (!current) return;
+      if (err) {
+        current.error = err instanceof Error ? err.message : String(err);
+        current.content = current.content || `Error: ${current.error}`;
+      }
+      current.finished = true;
+      current.updatedAt = Date.now();
+
+      if (
+        target.account.canSendActive &&
+        activeTarget &&
+        activeChunkCount === 0 &&
+        current.content.trim()
+      ) {
+        try {
+          const chunks = splitActiveTextChunks(current.content);
+          for (const chunk of chunks) {
+            const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
+            if (!result.ok) {
+              throw new Error(result.errmsg || "unknown wecom-app send failure");
+            }
+          }
+          if (chunks.length > 0) {
+            logger.info(`主动发送完成: streamId=${streamId}, 共 ${chunks.length} 段`);
+          }
+        } catch (sendErr) {
+          logger.error(`主动发送失败: ${String(sendErr)}`);
+        }
+      }
+    };
 
     const hooks = {
       onChunk: (text: string) => {
-        const current = streams.get(streamId);
-        if (!current) return;
-        appendStreamContent(current, text);
-        target.statusSink?.({ lastOutboundAt: Date.now() });
+        chunkFlush = chunkFlush.then(async () => {
+          const current = streams.get(streamId);
+          if (!current) return;
+
+          appendStreamContent(current, text);
+          target.statusSink?.({ lastOutboundAt: Date.now() });
+
+          if (!target.account.canSendActive || !activeTarget) {
+            return;
+          }
+
+          try {
+            const chunks = splitActiveTextChunks(text);
+            for (const chunk of chunks) {
+              const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
+              if (!result.ok) {
+                throw new Error(result.errmsg || "unknown wecom-app send failure");
+              }
+              activeChunkCount += 1;
+              target.statusSink?.({ lastOutboundAt: Date.now() });
+            }
+          } catch (sendErr) {
+            logger.error(`主动分片发送失败: ${String(sendErr)}`);
+          }
+        });
+        return chunkFlush;
       },
       onError: (err: unknown) => {
-        const current = streams.get(streamId);
-        if (current) {
-          current.error = err instanceof Error ? err.message : String(err);
-          current.content = current.content || `Error: ${current.error}`;
-          current.finished = true;
-          current.updatedAt = Date.now();
-        }
+        chunkFlush = chunkFlush.then(async () => {
+          const current = streams.get(streamId);
+          if (current) {
+            current.error = err instanceof Error ? err.message : String(err);
+            current.content = current.content || `Error: ${current.error}`;
+            current.updatedAt = Date.now();
+          }
+        });
         logger.error(`wecom-app agent failed: ${String(err)}`);
       },
     };
@@ -741,41 +807,11 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
       log: target.runtime.log,
       error: target.runtime.error,
     })
-      .then(async () => {
-        const current = streams.get(streamId);
-        if (current) {
-          current.finished = true;
-          current.updatedAt = Date.now();
-
-          // 如果支持主动发送，推送完整回复
-          if (target.account.canSendActive && (senderId || chatid) && current.content.trim()) {
-            try {
-              const formattedText = stripMarkdown(current.content);
-              const chunks = splitMessageByBytes(formattedText, 2048);
-
-              // 逐段发送完整内容
-              for (const chunk of chunks) {
-                await sendWecomAppMessage(
-                  target.account,
-                  chatid ? { chatid } : { userId: senderId },
-                  chunk
-                );
-              }
-              logger.info(`主动发送完成: streamId=${streamId}, 共 ${chunks.length} 段`);
-            } catch (err) {
-              logger.error(`主动发送失败: ${String(err)}`);
-            }
-          }
-        }
+      .then(() => {
+        void markStreamFinished();
       })
       .catch((err) => {
-        const current = streams.get(streamId);
-        if (current) {
-          current.error = err instanceof Error ? err.message : String(err);
-          current.content = current.content || `Error: ${current.error}`;
-          current.finished = true;
-          current.updatedAt = Date.now();
-        }
+        void markStreamFinished(err);
         logger.error(`wecom-app agent failed: ${String(err)}`);
       });
   } else {

@@ -1,7 +1,42 @@
 import { describe, expect, it } from "vitest";
 
-import { extractWecomAppContent } from "./bot.js";
+import { dispatchWecomAppMessage, extractWecomAppContent } from "./bot.js";
+import type { PluginRuntime } from "./runtime.js";
+import type { ResolvedWecomAppAccount } from "./types.js";
 import type { WecomAppInboundMessage } from "./types.js";
+
+function createAccount(): ResolvedWecomAppAccount {
+  return {
+    accountId: "app",
+    enabled: true,
+    configured: true,
+    receiveId: "corp123",
+    canSendActive: false,
+    config: {
+      dmPolicy: "open",
+    },
+  };
+}
+
+function createRuntime(params: {
+  dispatchReplyWithBufferedBlockDispatcher: NonNullable<
+    NonNullable<PluginRuntime["channel"]>["reply"]
+  >["dispatchReplyWithBufferedBlockDispatcher"];
+}): PluginRuntime {
+  return {
+    channel: {
+      routing: {
+        resolveAgentRoute: () => ({
+          sessionKey: "session-1",
+          accountId: "app",
+        }),
+      },
+      reply: {
+        dispatchReplyWithBufferedBlockDispatcher: params.dispatchReplyWithBufferedBlockDispatcher,
+      },
+    },
+  };
+}
 
 describe("extractWecomAppContent location", () => {
   it("formats classic XML-style location fields", () => {
@@ -33,5 +68,42 @@ describe("extractWecomAppContent location", () => {
     } as WecomAppInboundMessage;
 
     expect(extractWecomAppContent(msg)).toBe("[location]");
+  });
+
+  it("awaits async onChunk hooks before finishing dispatch", async () => {
+    let finishOnChunk: (() => void) | undefined;
+    const onChunkDone = new Promise<void>((resolve) => {
+      finishOnChunk = resolve;
+    });
+
+    const dispatchPromise = dispatchWecomAppMessage({
+      cfg: {},
+      account: createAccount(),
+      msg: {
+        msgtype: "text",
+        msgid: "msg-1",
+        from: { userid: "user-1" },
+        text: { content: "hello" },
+      } as WecomAppInboundMessage,
+      core: createRuntime({
+        dispatchReplyWithBufferedBlockDispatcher: async ({ dispatcherOptions }) => {
+          await dispatcherOptions.deliver({ text: "chunk-1" });
+        },
+      }),
+      hooks: {
+        onChunk: async () => {
+          await onChunkDone;
+        },
+      },
+    });
+
+    const pendingState = await Promise.race([
+      dispatchPromise.then(() => "resolved"),
+      Promise.resolve("pending"),
+    ]);
+    expect(pendingState).toBe("pending");
+
+    finishOnChunk?.();
+    await dispatchPromise;
   });
 });

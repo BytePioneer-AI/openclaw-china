@@ -18,11 +18,12 @@
 | 功能            | 智能机器人 (wecom) | 自建应用 (wecom-app) |
 | :-------------- | :----------------: | :------------------: |
 | 被动回复消息    |         ✅         |          ✅          |
-| 主动发送消息    |         ❌         |          ✅          |
+| 主动发送消息    |         ✅         |          ✅          |
 | 支持群聊        |         ✅         |          ❌          |
 | 需要企业认证    |         ❌         |          ❌          |
 | 需要 corpSecret |         ❌         |          ✅          |
 | 需要 IP 白名单  |         ❌         |          ✅          |
+| 图片/文件 | 出站文件不支持 | 出站任意类型；入站允许图片、音视频、定位、语音 |
 | 配置复杂度      |        简单        |         中等         |
 
 **推荐使用自建应用的场景**：
@@ -59,9 +60,13 @@
 3. OpenClaw 已安装并运行
 4. Node.js 和 pnpm（用于构建插件）
 
----
+### 步骤零. 注册并登录企业微信
 
-## 步骤零：安装 wecom-app 插件
+访问 <https://work.weixin.qq.com/>，按页面提示注册并进入管理后台。
+
+教程可参考此文档的【注册并登录企业微信】：https://github.com/BytePioneer-AI/openclaw-china/blob/main/doc/guides/wecom/configuration.md
+
+### 步骤一：安装 wecom-app 插件
 
 支持两种安装方式，按需选择：
 
@@ -76,13 +81,15 @@
 ```bash
 openclaw plugins install @openclaw-china/channels
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
 
-**仅安装 wecom-app 插件**
+**或 仅安装 wecom-app 插件**
 
 ```bash
 openclaw plugins install @openclaw-china/wecom-app
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
 
 ### 方式二：从源码安装（适合开发调试 / Windows 兼容）
@@ -93,45 +100,53 @@ openclaw china setup
 > BytePioneer-AI/openclaw-china 版本较新，建议用。
 
 ```bash
-cd ~/.openclaw/extensions
 git clone https://github.com/BytePioneer-AI/openclaw-china.git
-```
-
-2. 安装依赖并构建
-
-```bash
-cd ~/.openclaw/extensions/openclaw-china/extensions/wecom-app
+cd openclaw-china
 pnpm install
 pnpm build
-```
-
-3. 以链接模式安装到 OpenClaw
-
-```bash
-openclaw plugins install -l ~/.openclaw/extensions/openclaw-china/extensions/wecom-app
+openclaw plugins install -l ./packages/channels
 openclaw china setup
+openclaw config set gateway.bind lan
 ```
-
-> `-l` 表示链接模式，修改源码后只需重启 Gateway 即可生效，无需重新安装。
 
 更新源码（后续升级）：
 
 ```bash
-cd ~/.openclaw/extensions/openclaw-china
 git pull origin main
 pnpm install
 pnpm build
 ```
 
+> 必须执行 `openclaw config set gateway.bind lan` 否则后续可能会出现 回调地址不通过 的错误
+
 ---
 
 ## 步骤一：创建自建应用
+
+请注意，我们一共需要下面这些数据：
+
+```
+"webhookPath": "/wecom-app", # 回调路径，默认即可
+"token": "xxx",
+"encodingAESKey": "xxx",
+"corpId": "xxx",  # 企业 ID
+"corpSecret": "xxx",
+"agentId": xxx
+```
 
 ### 1. 登录企业微信管理后台
 
 访问 [企业微信管理后台](https://work.weixin.qq.com/wework_admin/frame) 并登录。
 
-### 2. 创建应用
+### 2. 获取企业 ID
+
+1. 点击左侧菜单「我的企业」
+2. 在「企业信息」页面底部找到「企业 ID」
+3. 记录这个 ID（这就是 `corpId`）
+
+<img src="image/configuration/1770105784942.png" />
+
+### 3. 创建应用
 
 1. 点击左侧菜单「应用管理」
 2. 在「自建」区域点击「创建应用」
@@ -147,7 +162,7 @@ pnpm build
 
 4. 点击「创建应用」
 
-### 3. 获取应用凭证
+### 4. 获取应用凭证
 
 创建成功后，进入应用详情页，记录以下信息：
 
@@ -156,24 +171,13 @@ pnpm build
 
 <img src="image/configuration/1770105739884.png" />
 
-### 4. 获取企业 ID
 
-1. 点击左侧菜单「我的企业」
-2. 在「企业信息」页面底部找到「企业 ID」
-3. 记录这个 ID（这就是 `corpId`）
-
-<img src="image/configuration/1770105784942.png" />
 
 ---
 
 ## 步骤二：配置接收消息服务器
 
-### 1. 进入应用设置
-
-1. 在应用详情页，找到「接收消息」设置
-2. 点击「设置 API 接收」
-
-### 2. 填写服务器配置
+### 1. 填写服务器配置
 
 - **URL**：OpenClaw Gateway 的公网访问地址（企业微信会向这个地址发送消息回调）
 
@@ -186,23 +190,24 @@ pnpm build
 
   **说明**：
 
-  - **协议**：如果有域名和 SSL 证书，使用 `https://`；否则使用 `http://`
   - **域名/IP**：填写你服务器的公网域名或公网 IP 地址
   - **端口**：填写 OpenClaw Gateway 监听的端口（默认 `18789`）
   - **路径**：必须与配置文件中的 `webhookPath` 一致（默认 `/wecom-app`）
-
+  
   > 💡 **如何获取公网 IP**：在服务器上运行 `curl ifconfig.me` 或访问 [ifconfig.me](https://ifconfig.me)
   >
-- **Token**：自定义一个字符串，例如 `your-random-token`
-- **EncodingAESKey**：点击「随机获取」生成 43 位字符
 
 <img src="image/configuration/1770106232112.png" />
 
-> ⚠️ **重要**：先配置好 OpenClaw，再点击「保存」，否则验证会失败。
+> **⚠️ 重要：在这里你可以暂停并开始【步骤三】**
+>
+> 1. 回调必须先将Wecom-app的OpenClaw配置完毕，并且 OpenClaw处于运行状态。
+>
+> 2. 必须执行 `openclaw config set gateway.bind lan` 否则后续可能会出现 回调地址不通过 的错误
 
 <img src="image/configuration/1770106267509.png" />
 
-### 3. 配置 IP 白名单
+### 2. 配置 IP 白名单
 
 在应用详情页的「企业可信 IP」设置中，添加你服务器的公网 IP 地址。
 
@@ -337,6 +342,19 @@ openclaw gateway restart
 2. 发送一条消息
 3. 查看 OpenClaw 日志确认消息接收
 4. 等待 AI 回复
+
+### 3. 验证 `/verbose on` 实时输出（可选）
+
+如果你经常使用工具调用、文件读取或命令执行，建议顺手验证一下 verbose 输出是否正常：
+
+1. 先在企业微信会话里发送 `/verbose on`
+2. 再发送一个会触发多步执行的请求，例如“读取几个文件后总结差异”
+3. 正常情况下，verbose 日志会**按段陆续发送**
+4. 不会等全部任务完成后，再把所有日志合并成一条消息统一发出
+
+> 提示：
+> - 这个能力依赖 `corpId`、`corpSecret`、`agentId` 已正确配置，且企业微信 IP 白名单允许当前出口 IP。
+> - 如果你刚升级插件，请记得执行一次 `openclaw gateway restart`。
 
 ---
 
@@ -528,6 +546,7 @@ ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 2. 确认 `webhookPath` 与后台 URL 路径一致
 3. 确认 `token` 和 `encodingAESKey` 与后台配置完全一致
 4. 确认服务器公网可访问（可用 `curl` 测试）
+5. `openclaw config set gateway.bind lan`
 
 ### Q: 消息接收成功但发送失败？
 
@@ -535,20 +554,50 @@ ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 2. 检查是否已配置 IP 白名单
 3. 查看 OpenClaw 日志获取详细错误信息
 
-### Q: 如何获取服务器 IP 地址？
+### Q: 开启 `/verbose on` 后，日志还是等全部结束才一起发？
 
-运行以下命令：
+正常情况下，`wecom-app` 会把 verbose 输出按 chunk 逐段主动发送，而不是等任务结束后整包合并发送。
 
-```bash
-curl ifconfig.me
-```
+如果你仍然看到“最后一次性发完”，按下面顺序排查：
 
-或查看 OpenClaw 发送消息的错误日志，企业微信会返回需要添加白名单的 IP。
+1. **确认插件已升级到最新代码**
 
-### Q: Token 和 EncodingAESKey 可以自己生成吗？
+   如果你是源码安装，请执行：
 
-- **Token**：可以是任意字符串
-- **EncodingAESKey**：必须是 43 位的 Base64 字符，建议使用企业微信后台的「随机获取」功能
+   ```bash
+   git pull origin main
+   pnpm install
+   pnpm build
+   openclaw gateway restart
+   ```
+
+2. **确认主动发送能力完整可用**
+
+   以下字段必须正确：
+
+   - `corpId`
+   - `corpSecret`
+   - `agentId`
+
+   同时要确认企业微信后台的 **可信 IP / IP 白名单** 已包含当前 OpenClaw 出口 IP。
+
+3. **确认当前运行的是新进程**
+
+   如果你使用的是守护进程或后台运行方式，只改代码不重启不会生效。建议执行：
+
+   ```bash
+   openclaw gateway restart
+   ```
+
+4. **重新做一次最小验证**
+
+   - 先发 `/verbose on`
+   - 再发一个会触发多步执行的请求
+   - 观察日志是否分多条陆续到达
+
+> 说明：
+> - 企业微信客户端本身可能有轻微展示延迟，但正常表现仍应是“逐段陆续出现”，而不是“最后只来一大条”。
+> - 如果主动发送能力不可用，插件会回退到已有的 stream 占位/刷新路径，但不会有同样的实时逐段推送体验。
 
 ---
 
@@ -653,7 +702,8 @@ cp -a ~/.openclaw/extensions/openclaw-china/extensions/wecom-app/skills/wecom-ap
 - 签名校验 + 解密/加密回包
 - 支持 **JSON + XML** 两种入站格式
 - 长文本分片（企业微信单条约 2048 bytes 限制）
-- stream 占位/刷新（为适配企业微信 5 秒响应限制的缓冲式输出）
+- stream 占位/刷新（为适配企业微信 5 秒响应限制）
+- 开启 `/verbose on` 时，工具日志与中间回复支持按 chunk 逐段主动发送，而不是结束后整包合并
 
 ### 入站媒体（产品级留存）
 
@@ -671,6 +721,7 @@ cp -a ~/.openclaw/extensions/openclaw-china/extensions/wecom-app/skills/wecom-ap
 ### 出站（主动发送）
 
 - 支持主动发送文本
+- 主动发送文本会自动按企业微信单条长度限制分片
 - 支持主动发送媒体（按 MIME/扩展名识别 image/voice/file）
 - Markdown 降级：`stripMarkdown()` 将 Markdown 转为企业微信可显示的纯文本
 
