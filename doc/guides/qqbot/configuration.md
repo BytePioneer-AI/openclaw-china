@@ -152,7 +152,7 @@ openclaw config set gateway.http.endpoints.chatCompletions.enabled true
 | allowFrom | string[] | [] | 私聊白名单；只有在 `dmPolicy=allowlist` 时才需要配 |
 | groupAllowFrom | string[] | [] | 群聊白名单；只有在 `groupPolicy=allowlist` 时才需要配 |
 | textChunkLimit | number | 1500 | 单条消息允许的最大文本长度；超出后会自动拆成多条 |
-| replyFinalOnly | boolean | false | 是否只发最终答案。开启后，中间过程日志不发，但图片、语音这类媒体结果仍可正常发送 |
+| replyFinalOnly | boolean | false | 是否只发最终答案。`false` 时，QQ 私聊配合 `/verbose on` 会把 assistant 过渡说明和 tool 日志按真实顺序实时分条回发；`true` 时不发普通中间文本，但图片、语音这类媒体结果仍可正常发送 |
 | c2cMarkdownDeliveryMode | string | "proactive-table-only" | QQ 私聊里 Markdown 用什么方式发。默认只在“带表格”时切到更稳的方式；如果格式老是乱，可以改成 `proactive-all` |
 | autoSendLocalPathMedia | boolean | true | 是否把回复里的本地图片路径自动当成图片发出去。关掉后，路径会原样保留在文本里 |
 | longTaskNoticeDelayMs | number | 30000 | 多久还没正式回复，就先补一句“我还在处理”。设为 `0` 可关闭 |
@@ -217,12 +217,14 @@ openclaw config set channels.qqbot.c2cMarkdownDeliveryMode proactive-all
 - `proactive-table-only`：默认值。平时按普通方式发，只有检测到表格时才切到更稳的方式
 - `proactive-all`：所有私聊 Markdown 都走更稳的方式发。如果你经常遇到标题、引用、分割线、表格显示不对，优先试这个
 
-补充说明：
+### 3.2 私聊实时回发语义
 
-- 默认 `replyFinalOnly=false` 时，`/verbose on` 产生的中间日志会实时一条一条发出
-- 如果你把 `replyFinalOnly=true` 打开，普通中间日志就不发了，只保留最终答案；媒体结果不受影响
+- 默认 `replyFinalOnly=false` 时，QQ 私聊里的 assistant 过渡说明和 tool/verbose 日志都会实时发出，并按真实生成顺序交错出现
+- 你应该看到“说明 -> 日志 -> 说明 -> 日志”这类自然交错，而不是所有日志先发完、最后再补说明
+- 如果你把 `replyFinalOnly=true` 打开，普通中间文本就不发了，只保留最终答案；媒体结果不受影响
+- 这套实时回发语义当前只覆盖 QQ 私聊/C2C，群聊和频道仍保持现有行为
 
-### 3.2 验证 `/verbose on` 实时输出
+### 3.3 验证 `/verbose on` 实时输出
 
 建议在升级后做一次快速自检：
 
@@ -232,7 +234,8 @@ openclaw config set channels.qqbot.c2cMarkdownDeliveryMode proactive-all
 
 预期结果：
 
-- `replyFinalOnly=false`：verbose/tool 日志会按处理过程逐条回发，一个日志一个消息
+- `replyFinalOnly=false`：assistant 过渡说明、verbose/tool 日志都会按处理过程逐条回发，顺序和实际生成顺序一致
+- 你会看到说明消息和工具日志自然交错，而不是“工具日志先刷完，说明类消息最后补发”
 - 最终答复仍会单独发送，不会把前面的日志重新合并
 - `replyFinalOnly=true`：非 final 纯文本日志不会单独发送，但媒体类工具结果仍可投递
 
@@ -312,7 +315,7 @@ openclaw daemon start
 - 支持文本消息、图片、语音和部分文件能力；其中私聊能力比群聊更完整
 - QQ 官方接口对媒体能力本身有限制，尤其是群聊和频道，所以有些文件类型会自动降级成“文本提示 + 链接/路径”
 - 频道消息暂不支持直接发媒体，会退回成文本 + URL
-- QQ 本身不支持真正的平台级流式输出；但在私聊里可以通过多条消息的方式把中间过程持续发出来
+- QQ 本身不支持真正的平台级 token 流式输出；但在私聊里可以通过多条消息的方式，把 assistant 过渡说明和工具过程实时交错发出来
 - 私聊支持识别“引用上一条消息”，引用内容默认从 `~/.openclaw/qqbot/data/ref-index.jsonl` 恢复
 - 定时提醒直接走 OpenClaw 自带 cron，不需要额外接别的服务
 - 插件会自动记录通过策略校验的已知用户/群，方便后面主动发送时直接复用

@@ -106,7 +106,7 @@
 |------|:----:|:----:|:--:|:------------------:|:----------------:|
 | 文本消息 | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Markdown | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 流式响应 | ✅ | - | ❌ | ✅ | ❌ |
+| 流式响应 | ✅ | - | ⚠️<br />私聊实时分条回发 | ✅ | ❌ |
 | 图片/文件 | ✅  | ✅<br />（仅发送） | ✅<br />（出站：私聊任意类型， 群聊仅图片） | ✅（出站文件受限） | ✅<br />（出站任意类型；入站允许图片、音视频、定位、语音） |
 | 语音消息 | ✅ | - | ✅ | ✅ | ✅ |
 | 私聊 | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -116,17 +116,24 @@
 | 连接方式 | Stream | WebSocket | - | WebSocket 长连接 | HTTPS 回调 |
 | Access Token 缓存 | - | - | - | - | ✅（2 小时有效期） |
 
+> 说明：QQ 不支持平台原生 token 级流式输出，但在私聊里配合 `replyFinalOnly=false` 与 `/verbose on` 时，assistant 过渡说明和 tool 日志会按真实生成顺序分条实时回发。
+
 ## 更新日志
 
 <details>
 <summary><strong>点击展开更新日志</strong></summary>
 
+### 2026-03-14
+- `qqbot` 新增私聊用户显示名别名映射 `displayAliases`。首期仅对 direct 用户生效，支持 `user:<openid>`、`<openid>`、`senderId` 等键名，方便按已有联系人信息覆盖默认显示名。
+- `qqbot` 现在会优先使用 `~/.openclaw/qqbot/data/known-targets.json` 里的 `displayName` 作为私聊用户显示名；如果没有，再回退到 `displayAliases`，最后才使用稳定 ID，减少多账号和备注名场景下的识别成本。
+- `qqbot` 新增内置 `qqbot-contact-send` skill，并会随插件自动注册到新会话的 `<available_skills>`。模型可直接基于 `known-targets.json` 按联系人备注/显示名解析发送对象，并默认优先使用当前会话的 `accountId` 过滤目标，降低误发给同名联系人的风险。
+- `qqbot` 在 QQ 私聊里开启 `/verbose on` 且 `replyFinalOnly=false` 后，assistant 的普通过渡说明和工具日志现在都会实时发送，并按真实生成顺序交错出现，不会再出现“日志先刷完、说明最后补发”的时序错乱。
+- 这次修复只影响 QQ 私聊/C2C 的实时回发路径；如果你保持 `replyFinalOnly=true`，行为仍然和以前一样，只发最终文本结果，媒体结果不受影响。
+
 ### 2026-03-13
 - `qqbot` 现在能看懂 QQ 私聊里的“引用上一条消息”。用户问“这个是什么”“你刚才说的哪个文件”时，模型会一起参考被引用的那条内容来回答。
 - 引用内容会自动缓存在本地 `~/.openclaw/qqbot/data/ref-index.jsonl`，就算网关重启，之前的引用关系也还能继续识别。
 - 被引用的内容不只支持纯文本，也支持图片、语音、视频、文件这类消息的摘要；如果本地确实找不到旧消息，也不会再把“原始内容不可用”这种占位词喂给模型。
-- `qqbot` 新增内置 `qqbot-contact-send` skill，支持基于 `~/.openclaw/qqbot/data/known-targets.json` 按联系人备注/显示名解析发送对象，并默认优先使用当前会话的 `accountId` 过滤目标，减少多账号场景下误发给同名联系人。
-- 这个 skill 现在会随 QQBot 插件自动注册到新会话的 `<available_skills>`，模型可直接利用它生成 `message` tool 所需的发送参数，不需要再手工复制到 workspace 或 `~/.openclaw/skills`；正式安装的 npm 包也会一并带上对应 skill 文件和脚本。
 
 ### 2026-03-12
 - `qqbot` 在 QQ 私聊里开启 `/verbose on` 且 `replyFinalOnly=false` 后，执行过程中的工具输出和日志会边跑边发，一条一条实时出现，不会再等到最后一起发。
