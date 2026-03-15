@@ -7,6 +7,10 @@
 
 import {
   ASRError,
+  ASRAuthError,
+  ASRRequestError,
+  ASRResponseParseError,
+  ASRServiceError,
   appendCronHiddenPrompt,
   checkDmPolicy,
   createLogger,
@@ -50,12 +54,27 @@ function resolveVoiceFormat(msg: WecomAppInboundMessage, savedPath: string): str
 
 function formatASRErrorLog(err: unknown): string {
   if (err instanceof ASRError) {
-    return JSON.stringify({
+    const detail: Record<string, unknown> = {
       kind: err.kind,
       provider: err.provider,
       retryable: err.retryable,
       message: err.message,
-    });
+    };
+    if (err instanceof ASRAuthError && typeof err.status === "number") {
+      detail.status = err.status;
+    }
+    if (err instanceof ASRRequestError) {
+      if (typeof err.status === "number") detail.status = err.status;
+      if (err.bodySnippet) detail.bodySnippet = err.bodySnippet;
+    }
+    if (err instanceof ASRResponseParseError) {
+      if (typeof err.status === "number") detail.status = err.status;
+      if (err.bodySnippet) detail.bodySnippet = err.bodySnippet;
+    }
+    if (err instanceof ASRServiceError && typeof err.serviceCode === "number") {
+      detail.serviceCode = err.serviceCode;
+    }
+    return JSON.stringify(detail);
   }
   return JSON.stringify({
     message: err instanceof Error ? err.message : String(err),

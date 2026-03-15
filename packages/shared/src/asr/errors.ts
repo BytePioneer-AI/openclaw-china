@@ -33,14 +33,23 @@ export class ASRAuthError extends ASRError {
 }
 
 export class ASRRequestError extends ASRError {
-  constructor(provider: string, message: string, public readonly status?: number) {
+  constructor(
+    provider: string,
+    message: string,
+    public readonly status?: number,
+    public readonly bodySnippet?: string
+  ) {
     super(message, "request", provider, true);
     this.name = "ASRRequestError";
   }
 }
 
 export class ASRResponseParseError extends ASRError {
-  constructor(provider: string, public readonly bodySnippet: string) {
+  constructor(
+    provider: string,
+    public readonly bodySnippet: string,
+    public readonly status?: number
+  ) {
     super("ASR response is not valid JSON", "response_parse", provider, false);
     this.name = "ASRResponseParseError";
   }

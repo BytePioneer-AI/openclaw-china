@@ -7,6 +7,10 @@
 
 import {
   ASRError,
+  ASRAuthError,
+  ASRRequestError,
+  ASRResponseParseError,
+  ASRServiceError,
   appendCronHiddenPrompt,
   checkDmPolicy,
   createLogger,
@@ -64,12 +68,27 @@ function resolveVoiceFormat(_msg: WecomKfInboundMessage, savedPath: string, mime
 
 function formatASRErrorLog(err: unknown): string {
   if (err instanceof ASRError) {
-    return JSON.stringify({
+    const detail: Record<string, unknown> = {
       kind: err.kind,
       provider: err.provider,
       retryable: err.retryable,
       message: err.message,
-    });
+    };
+    if (err instanceof ASRAuthError && typeof err.status === "number") {
+      detail.status = err.status;
+    }
+    if (err instanceof ASRRequestError) {
+      if (typeof err.status === "number") detail.status = err.status;
+      if (err.bodySnippet) detail.bodySnippet = err.bodySnippet;
+    }
+    if (err instanceof ASRResponseParseError) {
+      if (typeof err.status === "number") detail.status = err.status;
+      if (err.bodySnippet) detail.bodySnippet = err.bodySnippet;
+    }
+    if (err instanceof ASRServiceError && typeof err.serviceCode === "number") {
+      detail.serviceCode = err.serviceCode;
+    }
+    return JSON.stringify(detail);
   }
   return JSON.stringify({
     message: err instanceof Error ? err.message : String(err),
@@ -78,6 +97,7 @@ function formatASRErrorLog(err: unknown): string {
 
 const VOICE_ASR_FALLBACK_TEXT = "当前语音功能未启动或识别失败，请稍后重试。";
 const VOICE_ASR_ERROR_MAX_LENGTH = 500;
+const STALE_INBOUND_GRACE_MS = 5_000;
 
 function trimTextForReply(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
@@ -88,6 +108,11 @@ function buildVoiceASRFallbackReply(errorMessage?: string): string {
   const detail = errorMessage?.trim();
   if (!detail) return VOICE_ASR_FALLBACK_TEXT;
   return `${VOICE_ASR_FALLBACK_TEXT}\n\n接口错误：${trimTextForReply(detail, VOICE_ASR_ERROR_MAX_LENGTH)}`;
+}
+
+function normalizeInboundSendTimeMs(sendTime?: number): number | undefined {
+  if (typeof sendTime !== "number" || !Number.isFinite(sendTime) || sendTime <= 0) return undefined;
+  return sendTime >= 1_000_000_000_000 ? sendTime : sendTime * 1000;
 }
 
 /**
@@ -379,15 +404,6 @@ export async function dispatchWecomKfMessage(params: {
     peer: { kind: "dm", id: chatId },
   });
 
-  const { text: rawBody, asrErrorMessage, cleanup } = await buildInboundBody({ cfg: safeCfg, account, msg, logger });
-  const fromLabel = `user:${senderId}`;
-
-  if (asrErrorMessage) {
-    await hooks.onChunk(buildVoiceASRFallbackReply(asrErrorMessage));
-    await cleanup();
-    return;
-  }
-
   const storePath = channel.session?.resolveStorePath?.(safeCfg.session?.store, {
     agentId: route.agentId,
   });
@@ -398,6 +414,27 @@ export async function dispatchWecomKfMessage(params: {
         sessionKey: route.sessionKey,
       }) ?? undefined
     : undefined;
+
+  const inboundSendTimeMs = normalizeInboundSendTimeMs(msg.send_time);
+  if (
+    inboundSendTimeMs !== undefined &&
+    previousTimestamp !== undefined &&
+    inboundSendTimeMs + STALE_INBOUND_GRACE_MS < previousTimestamp
+  ) {
+    logger.info(
+      `skip stale inbound message: msgid=${String(msg.msgid ?? "")} sessionKey=${route.sessionKey} sendTimeMs=${inboundSendTimeMs} sessionUpdatedAt=${previousTimestamp}`
+    );
+    return;
+  }
+
+  const { text: rawBody, asrErrorMessage, cleanup } = await buildInboundBody({ cfg: safeCfg, account, msg, logger });
+  const fromLabel = `user:${senderId}`;
+
+  if (asrErrorMessage) {
+    await hooks.onChunk(buildVoiceASRFallbackReply(asrErrorMessage));
+    await cleanup();
+    return;
+  }
 
   const envelopeOptions = channel.reply?.resolveEnvelopeFormatOptions
     ? channel.reply.resolveEnvelopeFormatOptions(safeCfg)

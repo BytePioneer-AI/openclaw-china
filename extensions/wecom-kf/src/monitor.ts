@@ -19,6 +19,13 @@ import {
 import { dispatchWecomKfMessage } from "./bot.js";
 import { tryGetWecomKfRuntime } from "./runtime.js";
 import { syncMessages, sendKfMessage, sendKfEventMessage, splitActiveTextChunks } from "./api.js";
+import {
+  getLastProcessedSendTime,
+  getPersistedSyncCursor,
+  hasPersistedProcessedMsgId,
+  persistProcessedMessage,
+  persistSyncCursor,
+} from "./sync-state.js";
 
 export type WecomKfRuntimeEnv = {
   log?: (message: string) => void;
@@ -155,13 +162,21 @@ async function handleSingleMessage(
   target: WecomKfWebhookTarget,
   msg: WecomKfInboundMessage,
   logger: Logger,
+  syncScopeKey: string,
 ): Promise<void> {
-  const msgid = msg.msgid;
+  const msgid = msg.msgid?.trim();
   if (msgid) {
-    if (processedMsgIds.has(msgid)) {
+    if (processedMsgIds.has(msgid) || hasPersistedProcessedMsgId(syncScopeKey, msgid)) {
       return; // 去重
     }
     processedMsgIds.set(msgid, Date.now());
+  }
+
+  const sendTime = typeof msg.send_time === "number" && Number.isFinite(msg.send_time) ? msg.send_time : undefined;
+  const lastProcessedSendTime = getLastProcessedSendTime(syncScopeKey);
+  if (sendTime !== undefined && lastProcessedSendTime !== undefined && sendTime < lastProcessedSendTime) {
+    logger.debug(`skipping stale message: msgid=${msgid ?? ""}, send_time=${sendTime}, watermark=${lastProcessedSendTime}`);
+    return;
   }
 
   const msgtype = String(msg.msgtype ?? "").toLowerCase();
@@ -174,6 +189,7 @@ async function handleSingleMessage(
   const origin = (msg as { origin?: number }).origin;
   if (origin !== undefined && origin !== 3) {
     logger.debug(`skipping non-customer message: origin=${origin}, msgtype=${msgtype}`);
+    persistProcessedMessage({ scopeKey: syncScopeKey, msgid, sendTime });
     return;
   }
 
@@ -195,6 +211,7 @@ async function handleSingleMessage(
         logger.warn("[wecom-kf] enter_session event missing welcome_code, cannot send welcome message");
       }
     }
+    persistProcessedMessage({ scopeKey: syncScopeKey, msgid, sendTime });
     return;
   }
 
@@ -210,6 +227,7 @@ async function handleSingleMessage(
   const externalUserId = msg.external_userid?.trim();
   if (!externalUserId) {
     logger.warn("message missing external_userid, skipping");
+    persistProcessedMessage({ scopeKey: syncScopeKey, msgid, sendTime });
     return;
   }
 
@@ -246,6 +264,7 @@ async function handleSingleMessage(
       log: target.runtime.log,
       error: target.runtime.error,
     });
+    persistProcessedMessage({ scopeKey: syncScopeKey, msgid, sendTime });
   } catch (err) {
     logger.error(`dispatch error: ${String(err)}`);
   }
@@ -429,8 +448,8 @@ async function pullAndProcessMessages(
   }
 
   const activeOpenKfId = callbackOpenKfId?.trim() || target.account.openKfid?.trim() || "";
-  const cursorKey = `${target.account.accountId}:${activeOpenKfId}`;
-  let cursor = syncCursors.get(cursorKey) ?? "";
+  const syncScopeKey = `${target.account.accountId}:${activeOpenKfId}`;
+  let cursor = syncCursors.get(syncScopeKey) ?? getPersistedSyncCursor(syncScopeKey) ?? "";
   let hasMore = true;
 
   while (hasMore) {
@@ -447,7 +466,7 @@ async function pullAndProcessMessages(
 
       for (const msg of messages) {
         try {
-          await handleSingleMessage(target, msg, logger);
+          await handleSingleMessage(target, msg, logger, syncScopeKey);
         } catch (err) {
           logger.error(`handle message failed: msgid=${msg.msgid} error=${String(err)}`);
         }
@@ -455,7 +474,8 @@ async function pullAndProcessMessages(
 
       if (response.next_cursor) {
         cursor = response.next_cursor;
-        syncCursors.set(cursorKey, cursor);
+        syncCursors.set(syncScopeKey, cursor);
+        persistSyncCursor(syncScopeKey, cursor);
       }
 
       hasMore = response.has_more === 1;
