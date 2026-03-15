@@ -125,7 +125,7 @@ const plugin = {
     properties: {},
   },
   register(api: MoltbotPluginApi) {
-    registerChinaSetupCli(api, { channels: ["wecom-app", "wecom-kh", "wecom-kf"] });
+    registerChinaSetupCli(api, { channels: ["wecom-app", "wecom-kf"] });
     showChinaInstallHint(api);
 
     if (api.runtime) {
