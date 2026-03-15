@@ -197,6 +197,10 @@ importers:
       moltbot:
         specifier: '>=0.1.0'
         version: 0.1.0
+    optionalDependencies:
+      ffmpeg-static:
+        specifier: ^5.2.0
+        version: 5.3.0
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

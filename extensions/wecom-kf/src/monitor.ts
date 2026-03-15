@@ -400,9 +400,9 @@ export async function handleWecomKfWebhookRequest(req: IncomingMessage, res: Ser
   const callbackOpenKfId = callbackXml.OpenKfId ?? "";
 
   logger.info(`[wecom-kf] callback received: open_kfid=${callbackOpenKfId}`);
-  if (callbackOpenKfId && target.account.agentId && target.account.agentId !== callbackOpenKfId) {
+  if (callbackOpenKfId && target.account.openKfid && target.account.openKfid !== callbackOpenKfId) {
     logger.warn(
-      `[wecom-kf] configured agentId=${target.account.agentId} differs from callback open_kfid=${callbackOpenKfId}; using callback value for inbound sync`
+      `[wecom-kf] configured openKfid=${target.account.openKfid} differs from callback open_kfid=${callbackOpenKfId}; using callback value for inbound sync`
     );
   }
 
@@ -428,7 +428,7 @@ async function pullAndProcessMessages(
     return;
   }
 
-  const activeOpenKfId = callbackOpenKfId?.trim() || target.account.agentId?.trim() || "";
+  const activeOpenKfId = callbackOpenKfId?.trim() || target.account.openKfid?.trim() || "";
   const cursorKey = `${target.account.accountId}:${activeOpenKfId}`;
   let cursor = syncCursors.get(cursorKey) ?? "";
   let hasMore = true;

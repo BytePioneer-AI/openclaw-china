@@ -2,30 +2,96 @@
  * 微信客服渠道消息处理
  *
  * 将拉取到的消息分发给 OpenClaw Agent
+ * 支持语音 ASR、图片/文件下载归档
  */
 
 import {
+  ASRError,
   appendCronHiddenPrompt,
   checkDmPolicy,
   createLogger,
+  transcribeTencentFlash,
   type Logger,
 } from "@openclaw-china/shared";
+import { readFile } from "node:fs/promises";
 
 import type { PluginRuntime } from "./runtime.js";
 import type { ResolvedWecomKfAccount, WecomKfInboundMessage, WecomKfDmPolicy } from "./types.js";
 import {
   resolveAllowFrom,
+  resolveWecomKfASRCredentials,
   resolveDmPolicy,
+  resolveInboundMediaEnabled,
+  resolveInboundMediaMaxBytes,
   type PluginConfig,
 } from "./config.js";
+import {
+  downloadWecomMediaToFile,
+  finalizeInboundMedia,
+  pruneInboundMediaDir,
+} from "./api.js";
 
 export type WecomKfDispatchHooks = {
   onChunk: (text: string) => void | Promise<void>;
   onError?: (err: unknown) => void;
 };
 
+function resolveVoiceFormat(_msg: WecomKfInboundMessage, savedPath: string, mimeType?: string): string {
+  const lowerPath = savedPath.toLowerCase();
+  if (lowerPath.endsWith(".speex")) return "speex";
+  if (lowerPath.endsWith(".amr")) return "amr";
+  if (lowerPath.endsWith(".silk")) return "silk";
+  if (lowerPath.endsWith(".mp3")) return "mp3";
+  if (lowerPath.endsWith(".wav")) return "wav";
+  if (lowerPath.endsWith(".ogg")) return "ogg";
+  if (lowerPath.endsWith(".m4a")) return "m4a";
+  if (lowerPath.endsWith(".aac")) return "aac";
+  if (lowerPath.endsWith(".flac")) return "flac";
+
+  const mime = mimeType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (mime === "audio/amr") return "amr";
+  if (mime === "audio/speex" || mime === "audio/x-speex") return "speex";
+  if (mime === "audio/silk" || mime === "audio/x-silk") return "silk";
+  if (mime === "audio/mpeg" || mime === "audio/mp3") return "mp3";
+  if (mime === "audio/wav" || mime === "audio/x-wav") return "wav";
+  if (mime === "audio/ogg") return "ogg";
+  if (mime === "audio/aac") return "aac";
+  if (mime === "audio/x-m4a" || mime === "audio/mp4") return "m4a";
+  if (mime === "audio/flac") return "flac";
+
+  return "silk";
+}
+
+function formatASRErrorLog(err: unknown): string {
+  if (err instanceof ASRError) {
+    return JSON.stringify({
+      kind: err.kind,
+      provider: err.provider,
+      retryable: err.retryable,
+      message: err.message,
+    });
+  }
+  return JSON.stringify({
+    message: err instanceof Error ? err.message : String(err),
+  });
+}
+
+const VOICE_ASR_FALLBACK_TEXT = "当前语音功能未启动或识别失败，请稍后重试。";
+const VOICE_ASR_ERROR_MAX_LENGTH = 500;
+
+function trimTextForReply(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function buildVoiceASRFallbackReply(errorMessage?: string): string {
+  const detail = errorMessage?.trim();
+  if (!detail) return VOICE_ASR_FALLBACK_TEXT;
+  return `${VOICE_ASR_FALLBACK_TEXT}\n\n接口错误：${trimTextForReply(detail, VOICE_ASR_ERROR_MAX_LENGTH)}`;
+}
+
 /**
- * 提取消息内容
+ * 提取消息内容（基础版，不含媒体下载）
  */
 export function extractWecomKfContent(msg: WecomKfInboundMessage): string {
   const msgtype = String(msg.msgtype ?? "").toLowerCase();
@@ -82,12 +148,186 @@ export function extractWecomKfContent(msg: WecomKfInboundMessage): string {
   return msgtype ? `[${msgtype}]` : "";
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 入站媒体增强：下载/ASR/归档
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function enrichInboundContentWithMedia(params: {
+  cfg: PluginConfig;
+  account: ResolvedWecomKfAccount;
+  msg: WecomKfInboundMessage;
+  logger?: Logger;
+}): Promise<{ text: string; mediaPaths: string[]; asrErrorMessage?: string; cleanup: () => Promise<void> }> {
+  const { account, msg, logger } = params;
+  const msgtype = String(msg.msgtype ?? "").toLowerCase();
+
+  const accountConfig = account?.config ?? {};
+  const enabled = resolveInboundMediaEnabled(accountConfig);
+  const maxBytes = resolveInboundMediaMaxBytes(accountConfig);
+
+  const mediaPaths: string[] = [];
+  let asrErrorMessage: string | undefined;
+
+  const makeResult = (text: string) => ({
+    text,
+    mediaPaths,
+    asrErrorMessage,
+    cleanup: async () => {
+      try { await pruneInboundMediaDir(account); } catch { /* ignore */ }
+    },
+  });
+
+  if (!enabled) {
+    return makeResult(extractWecomKfContent(msg));
+  }
+
+  // 图片
+  if (msgtype === "image") {
+    try {
+      const mediaId = String((msg as { image?: { media_id?: string } }).image?.media_id ?? "").trim();
+      if (mediaId) {
+        const saved = await downloadWecomMediaToFile(account, mediaId, { maxBytes, prefix: "img" });
+        if (saved.ok && saved.path) {
+          const finalPath = await finalizeInboundMedia(account, saved.path);
+          mediaPaths.push(finalPath);
+          return makeResult(`[image] saved:${finalPath}`);
+        }
+        return makeResult(`[image] (save failed) ${saved.error ?? ""}`.trim());
+      }
+      return makeResult(extractWecomKfContent(msg));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return makeResult(`[image] (download error: ${errorMsg})`);
+    }
+  }
+
+  // 文件
+  if (msgtype === "file") {
+    try {
+      const mediaId = String((msg as { file?: { media_id?: string } }).file?.media_id ?? "").trim();
+      if (mediaId) {
+        const saved = await downloadWecomMediaToFile(account, mediaId, { maxBytes, prefix: "file" });
+        if (saved.ok && saved.path) {
+          const finalPath = await finalizeInboundMedia(account, saved.path);
+          mediaPaths.push(finalPath);
+          return makeResult(`[file] saved:${finalPath}`);
+        }
+        return makeResult(`[file] (save failed) ${saved.error ?? ""}`.trim());
+      }
+      return makeResult(extractWecomKfContent(msg));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return makeResult(`[file] (download error: ${errorMsg})`);
+    }
+  }
+
+  // 视频
+  if (msgtype === "video") {
+    try {
+      const mediaId = String((msg as { video?: { media_id?: string } }).video?.media_id ?? "").trim();
+      if (mediaId) {
+        const saved = await downloadWecomMediaToFile(account, mediaId, { maxBytes, prefix: "video" });
+        if (saved.ok && saved.path) {
+          const finalPath = await finalizeInboundMedia(account, saved.path);
+          mediaPaths.push(finalPath);
+          return makeResult(`[video] saved:${finalPath}`);
+        }
+        return makeResult(`[video] (save failed) ${saved.error ?? ""}`.trim());
+      }
+      return makeResult(extractWecomKfContent(msg));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return makeResult(`[video] (download error: ${errorMsg})`);
+    }
+  }
+
+  // 语音：下载 + 可选 ASR
+  if (msgtype === "voice") {
+    try {
+      const mediaId = String((msg as { voice?: { media_id?: string } }).voice?.media_id ?? "").trim();
+      const asrCredentials = resolveWecomKfASRCredentials(accountConfig);
+
+      if (mediaId) {
+        const saved = await downloadWecomMediaToFile(account, mediaId, { maxBytes, prefix: "voice" });
+        if (saved.ok && saved.path) {
+          const finalPath = await finalizeInboundMedia(account, saved.path);
+          mediaPaths.push(finalPath);
+
+          if (asrCredentials) {
+            try {
+              const audio = await readFile(finalPath);
+              const asrConfig: {
+                appId: string;
+                secretId: string;
+                secretKey: string;
+                engineType?: string;
+                voiceFormat: string;
+                timeoutMs?: number;
+              } = {
+                appId: asrCredentials.appId,
+                secretId: asrCredentials.secretId,
+                secretKey: asrCredentials.secretKey,
+                voiceFormat: resolveVoiceFormat(msg, finalPath, saved.mimeType),
+              };
+              if (asrCredentials.engineType) {
+                asrConfig.engineType = asrCredentials.engineType;
+              }
+              if (typeof asrCredentials.timeoutMs === "number") {
+                asrConfig.timeoutMs = asrCredentials.timeoutMs;
+              }
+              const transcript = await transcribeTencentFlash({ audio, config: asrConfig });
+              const safeTranscript = transcript.trim();
+              if (safeTranscript) {
+                return makeResult(`[voice] saved:${finalPath}\n[recognition] ${safeTranscript}`);
+              }
+            } catch (err) {
+              asrErrorMessage = err instanceof Error ? err.message : String(err);
+              logger?.warn(
+                `[voice-asr] transcription failed accountId=${account.accountId} msgId=${String(msg.msgid ?? "")} detail=${formatASRErrorLog(err)}`
+              );
+            }
+          }
+
+          return makeResult(`[voice] saved:${finalPath}`);
+        }
+        return makeResult(`[voice] (save failed) ${saved.error ?? ""}`.trim());
+      }
+
+      return makeResult(extractWecomKfContent(msg));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return makeResult(`[voice] (download error: ${errorMsg})`);
+    }
+  }
+
+  return makeResult(extractWecomKfContent(msg));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 消息分发
+// ─────────────────────────────────────────────────────────────────────────────
+
 function resolveSenderId(msg: WecomKfInboundMessage): string {
   return msg.external_userid?.trim() || "unknown";
 }
 
 function resolveChatId(_msg: WecomKfInboundMessage, senderId: string): string {
   return senderId;
+}
+
+async function buildInboundBody(params: {
+  cfg: PluginConfig;
+  account: ResolvedWecomKfAccount;
+  msg: WecomKfInboundMessage;
+  logger?: Logger;
+}): Promise<{ text: string; asrErrorMessage?: string; cleanup: () => Promise<void> }> {
+  const enriched = await enrichInboundContentWithMedia({
+    cfg: params.cfg,
+    account: params.account,
+    msg: params.msg,
+    logger: params.logger,
+  });
+  return { text: enriched.text, asrErrorMessage: enriched.asrErrorMessage, cleanup: enriched.cleanup };
 }
 
 /**
@@ -112,7 +352,6 @@ export async function dispatchWecomKfMessage(params: {
 
   const accountConfig = account?.config ?? {};
 
-  // DM 策略检查
   const dmPolicy = resolveDmPolicy(accountConfig);
   const allowFrom = resolveAllowFrom(accountConfig);
 
@@ -140,8 +379,14 @@ export async function dispatchWecomKfMessage(params: {
     peer: { kind: "dm", id: chatId },
   });
 
-  const rawBody = extractWecomKfContent(msg);
+  const { text: rawBody, asrErrorMessage, cleanup } = await buildInboundBody({ cfg: safeCfg, account, msg, logger });
   const fromLabel = `user:${senderId}`;
+
+  if (asrErrorMessage) {
+    await hooks.onChunk(buildVoiceASRFallbackReply(asrErrorMessage));
+    await cleanup();
+    return;
+  }
 
   const storePath = channel.session?.resolveStorePath?.(safeCfg.session?.store, {
     agentId: route.agentId,
@@ -296,4 +541,6 @@ export async function dispatchWecomKfMessage(params: {
       },
     },
   });
+
+  await cleanup();
 }

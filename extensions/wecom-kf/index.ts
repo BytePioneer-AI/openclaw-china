@@ -70,11 +70,20 @@ export {
   sendKfMessage,
   sendKfImageMessage,
   sendKfFileMessage,
+  sendKfVoiceMessage,
+  sendKfVideoMessage,
   sendKfEventMessage,
   getAccessToken,
   syncMessages,
   stripMarkdown,
   uploadMedia,
+  downloadWecomMediaToFile,
+  finalizeInboundMedia,
+  pruneInboundMediaDir,
+  downloadAndSendKfImage,
+  downloadAndSendKfVoice,
+  downloadAndSendKfFile,
+  downloadAndSendKfVideo,
   clearAccessTokenCache,
   clearAllAccessTokenCache,
 } from "./src/api.js";
@@ -85,6 +94,7 @@ export type {
   ResolvedWecomKfAccount,
   WecomKfInboundMessage,
   WecomKfSendTarget,
+  WecomKfASRCredentials,
 } from "./src/types.js";
 
 const plugin = {
@@ -97,7 +107,7 @@ const plugin = {
     properties: {},
   },
   register(api: MoltbotPluginApi) {
-    registerChinaSetupCli(api, { channels: ["wecom-app", "wecom-kh", "wecom-kf"] });
+    registerChinaSetupCli(api, { channels: ["wecom-app", "wecom-kf"] });
     showChinaInstallHint(api);
 
     if (api.runtime) {

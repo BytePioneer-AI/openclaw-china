@@ -16,7 +16,20 @@ import {
 } from "./config.js";
 import { registerWecomKfWebhookTarget } from "./monitor.js";
 import { setWecomKfRuntime } from "./runtime.js";
-import { sendKfMessage, downloadAndSendKfImage, stripMarkdown } from "./api.js";
+import {
+  sendKfMessage,
+  downloadAndSendKfImage,
+  downloadAndSendKfVoice,
+  downloadAndSendKfFile,
+  downloadAndSendKfVideo,
+  stripMarkdown,
+} from "./api.js";
+import {
+  isWecomAudioMimeType,
+  isWecomAudioSource,
+  shouldTranscodeWecomVoice,
+  extractSourceExtension,
+} from "./voice.js";
 
 type ParsedDirectTarget = {
   accountId?: string;
@@ -63,6 +76,35 @@ function parseDirectTarget(rawTarget: string): ParsedDirectTarget | null {
   return { accountId, externalUserId };
 }
 
+type MediaType = "image" | "voice" | "video" | "file";
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "bmp", "webp"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "avi", "mov", "wmv", "mkv", "flv", "webm", "m4v"]);
+
+function detectMediaType(mediaUrl: string, mimeType?: string): MediaType {
+  const normalizedMime = mimeType?.split(";")[0]?.trim().toLowerCase();
+
+  if (normalizedMime) {
+    if (normalizedMime === "image/svg+xml") return "file";
+    if (normalizedMime.startsWith("image/")) return "image";
+    if (isWecomAudioMimeType(mimeType)) return "voice";
+    if (normalizedMime.startsWith("video/")) return "video";
+  }
+
+  if (isWecomAudioSource(mediaUrl, mimeType)) return "voice";
+
+  const ext = extractSourceExtension(mediaUrl);
+  if (ext) {
+    if (ext === "svg") return "file";
+    if (IMAGE_EXTENSIONS.has(ext)) return "image";
+    if (VIDEO_EXTENSIONS.has(ext)) return "video";
+  }
+
+  if (normalizedMime && !normalizedMime.startsWith("image/")) return "file";
+
+  return "image";
+}
+
 const meta = {
   id: "wecom-kf",
   label: "WeCom KF",
@@ -85,7 +127,7 @@ export const wecomKfPlugin = {
 
   capabilities: {
     chatTypes: ["direct"] as const,
-    media: false,
+    media: true,
     reactions: false,
     threads: false,
     edit: false,
@@ -198,7 +240,7 @@ export const wecomKfPlugin = {
       enabled: account.enabled,
       configured: account.configured,
       canSend: account.canSend,
-      agentId: account.agentId,
+      openKfid: account.openKfid,
       webhookPath: account.config.webhookPath ?? "/wecom-kf",
     }),
 
@@ -298,7 +340,7 @@ export const wecomKfPlugin = {
           channel: "wecom-kf",
           ok: false,
           messageId: "",
-          error: new Error("Account not configured for sending (missing corpId, corpSecret, or agentId)"),
+          error: new Error("Account not configured for sending (missing corpId, corpSecret, or openKfid)"),
         };
       }
 
@@ -356,8 +398,39 @@ export const wecomKfPlugin = {
         };
       }
 
+      const target = { externalUserId: parsed.externalUserId };
+      const mediaType = detectMediaType(params.mediaUrl, params.mimeType);
+
       try {
-        const result = await downloadAndSendKfImage(account, { externalUserId: parsed.externalUserId }, params.mediaUrl);
+        let result;
+
+        if (mediaType === "voice") {
+          const voiceTranscodeEnabled = account.config?.voiceTranscode?.enabled !== false;
+          const needsTranscode = voiceTranscodeEnabled && shouldTranscodeWecomVoice(params.mediaUrl, params.mimeType);
+
+          try {
+            result = await downloadAndSendKfVoice(account, target, params.mediaUrl, {
+              contentType: params.mimeType,
+              transcode: voiceTranscodeEnabled,
+            });
+          } catch {
+            result = await downloadAndSendKfFile(account, target, params.mediaUrl);
+          }
+
+          if (!result.ok && needsTranscode) {
+            result = await downloadAndSendKfFile(account, target, params.mediaUrl);
+          }
+        } else if (mediaType === "video") {
+          result = await downloadAndSendKfVideo(account, target, params.mediaUrl);
+        } else if (mediaType === "file") {
+          if (params.text?.trim()) {
+            await sendKfMessage(account, target, stripMarkdown(params.text));
+          }
+          result = await downloadAndSendKfFile(account, target, params.mediaUrl);
+        } else {
+          result = await downloadAndSendKfImage(account, target, params.mediaUrl);
+        }
+
         return {
           channel: "wecom-kf",
           ok: result.ok,
@@ -427,7 +500,7 @@ export const wecomKfPlugin = {
         running: true,
         configured: true,
         canSend: account.canSend,
-        agentId: account.agentId,
+        openKfid: account.openKfid,
         webhookPath: path,
         lastStartAt: Date.now(),
       });

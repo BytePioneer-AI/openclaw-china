@@ -12,7 +12,7 @@
       "name": { "type": "string" },
       "corpId": { "type": "string" },
       "corpSecret": { "type": "string" },
-      "agentId": { "type": "string" },
+      "openKfid": { "type": "string" },
       "apiBaseUrl": { "type": "string" },
       "webhookPath": { "type": "string" },
       "token": { "type": "string" },
@@ -21,6 +21,36 @@
       "welcomeText": { "type": "string" },
       "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"] },
       "allowFrom": { "type": "array", "items": { "type": "string" } },
+      "inboundMedia": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "dir": { "type": "string" },
+          "maxBytes": { "type": "number" },
+          "keepDays": { "type": "number" }
+        }
+      },
+      "voiceTranscode": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "prefer": { "type": "string", "enum": ["amr"] }
+        }
+      },
+      "asr": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "appId": { "type": "string" },
+          "secretId": { "type": "string" },
+          "secretKey": { "type": "string" },
+          "engineType": { "type": "string" },
+          "timeoutMs": { "type": "number" }
+        }
+      },
       "defaultAccount": { "type": "string" },
       "accounts": {
         "type": "object",
@@ -32,7 +62,7 @@
             "enabled": { "type": "boolean" },
             "corpId": { "type": "string" },
             "corpSecret": { "type": "string" },
-            "agentId": { "type": "string" },
+            "openKfid": { "type": "string" },
             "apiBaseUrl": { "type": "string" },
             "webhookPath": { "type": "string" },
             "token": { "type": "string" },
@@ -40,7 +70,37 @@
             "receiveId": { "type": "string" },
             "welcomeText": { "type": "string" },
             "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"] },
-            "allowFrom": { "type": "array", "items": { "type": "string" } }
+            "allowFrom": { "type": "array", "items": { "type": "string" } },
+            "inboundMedia": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "dir": { "type": "string" },
+                "maxBytes": { "type": "number" },
+                "keepDays": { "type": "number" }
+              }
+            },
+            "voiceTranscode": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "prefer": { "type": "string", "enum": ["amr"] }
+              }
+            },
+            "asr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "appId": { "type": "string" },
+                "secretId": { "type": "string" },
+                "secretKey": { "type": "string" },
+                "engineType": { "type": "string" },
+                "timeoutMs": { "type": "number" }
+              }
+            }
           }
         }
       }
@@ -49,10 +109,13 @@
   "uiHints": {
     "corpId": { "label": "企业ID (CorpID)" },
     "corpSecret": { "label": "应用 Secret", "sensitive": true },
-    "agentId": { "label": "客服账号ID (open_kfid, 如 wkAJ_XXXXX)" },
+    "openKfid": { "label": "客服账号ID (open_kfid, 如 wkAJ_XXXXX)" },
     "apiBaseUrl": { "label": "企微 API 基础地址（可选代理）" },
     "token": { "label": "回调Token", "sensitive": true },
     "encodingAESKey": { "label": "回调EncodingAESKey", "sensitive": true },
-    "webhookPath": { "label": "Webhook Path" }
+    "webhookPath": { "label": "Webhook Path" },
+    "asr.appId": { "label": "腾讯云 ASR AppId" },
+    "asr.secretId": { "label": "腾讯云 ASR SecretId", "sensitive": true },
+    "asr.secretKey": { "label": "腾讯云 ASR SecretKey", "sensitive": true }
   }
 }

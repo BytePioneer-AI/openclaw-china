@@ -94,7 +94,7 @@ describe("config", () => {
     it("应从环境变量回退默认账户配置", () => {
       process.env.WECOM_KF_CORP_ID = "env-corp-id";
       process.env.WECOM_KF_CORP_SECRET = "env-corp-secret";
-      process.env.WECOM_KF_AGENT_ID = "1000004";
+      process.env.WECOM_KF_OPEN_KFID = "1000004";
       process.env.WECOM_KF_TOKEN = "env-token";
       process.env.WECOM_KF_ENCODING_AES_KEY = "env-aes-key";
 
@@ -104,7 +104,7 @@ describe("config", () => {
       expect(account.accountId).toBe(DEFAULT_ACCOUNT_ID);
       expect(account.corpId).toBe("env-corp-id");
       expect(account.corpSecret).toBe("env-corp-secret");
-      expect(account.agentId).toBe("1000004");
+      expect(account.openKfid).toBe("1000004");
       expect(account.receiveId).toBe("env-corp-id");
       expect(account.token).toBe("env-token");
       expect(account.canSend).toBe(true);
@@ -121,7 +121,7 @@ describe("config", () => {
             accounts: {
               "kf-1": {
                 corpSecret: "override-secret",
-                agentId: "1000005",
+                openKfid: "1000005",
               },
             },
           },
@@ -131,7 +131,7 @@ describe("config", () => {
       const account = resolveWecomKfAccount({ cfg, accountId: "kf-1" });
       expect(account.corpId).toBe("my-corp");
       expect(account.corpSecret).toBe("override-secret");
-      expect(account.agentId).toBe("1000005");
+      expect(account.openKfid).toBe("1000005");
       expect(account.token).toBe("global-token");
       expect(account.canSend).toBe(true);
     });
@@ -158,7 +158,7 @@ describe("config", () => {
             enabled: false,
             corpId: "corp",
             corpSecret: "secret",
-            agentId: "1000004",
+            openKfid: "1000004",
             token: "t",
             encodingAESKey: "k",
           },

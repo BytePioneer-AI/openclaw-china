@@ -7,7 +7,7 @@ export type WecomKfDmPolicy = "open" | "pairing" | "allowlist" | "disabled";
 
 /**
  * 微信客服账户配置
- * 使用 corpId + corpSecret 获取 access_token，agentId 标识客服账号
+ * 使用 corpId + corpSecret 获取 access_token，openKfid 标识客服账号
  */
 export type WecomKfAccountConfig = {
   name?: string;
@@ -26,8 +26,8 @@ export type WecomKfAccountConfig = {
   corpId?: string;
   /** 微信客服应用 Secret（用于获取 access_token） */
   corpSecret?: string;
-  /** 客服账号 ID */
-  agentId?: string;
+  /** 客服账号 ID（open_kfid） */
+  openKfid?: string;
   /** 企业微信 API 基础地址（可选，默认 https://qyapi.weixin.qq.com） */
   apiBaseUrl?: string;
 
@@ -38,6 +38,40 @@ export type WecomKfAccountConfig = {
   dmPolicy?: WecomKfDmPolicy;
   /** DM 允许列表（external_userid） */
   allowFrom?: string[];
+
+  /** 入站媒体（图片/文件/语音）落盘设置 */
+  inboundMedia?: {
+    /** 是否启用入站媒体落盘（默认 true） */
+    enabled?: boolean;
+    /** 保存目录（默认 /root/.openclaw/media/wecom-kf/inbound） */
+    dir?: string;
+    /** 单个文件最大字节数（默认 10MB） */
+    maxBytes?: number;
+    /** 过期清理天数（默认 7） */
+    keepDays?: number;
+  };
+
+  /**
+   * 语音发送转码策略
+   * 默认会对非 amr/speex 的音频自动转码为 amr；
+   * enabled=false 时显式关闭转码，对不兼容格式回退为 file 发送。
+   */
+  voiceTranscode?: {
+    enabled?: boolean;
+    prefer?: "amr";
+  };
+
+  /**
+   * 入站语音 ASR 配置（腾讯云录音文件识别极速版）
+   */
+  asr?: {
+    enabled?: boolean;
+    appId?: string;
+    secretId?: string;
+    secretKey?: string;
+    engineType?: string;
+    timeoutMs?: number;
+  };
 };
 
 /**
@@ -66,9 +100,9 @@ export type ResolvedWecomKfAccount = {
   corpId?: string;
   /** 微信客服应用 Secret */
   corpSecret?: string;
-  /** 客服账号 ID */
-  agentId?: string;
-  /** 是否支持收发消息（corpId + corpSecret + agentId 均已配置） */
+  /** 客服账号 ID（open_kfid） */
+  openKfid?: string;
+  /** 是否支持收发消息（corpId + corpSecret + openKfid 均已配置） */
   canSend: boolean;
   /** 原始账户配置 */
   config: WecomKfAccountConfig;
@@ -86,6 +120,15 @@ export type WecomKfSendTarget = {
 export type AccessTokenCacheEntry = {
   token: string;
   expiresAt: number;
+};
+
+/** ASR 凭证 */
+export type WecomKfASRCredentials = {
+  appId: string;
+  secretId: string;
+  secretKey: string;
+  engineType?: string;
+  timeoutMs?: number;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

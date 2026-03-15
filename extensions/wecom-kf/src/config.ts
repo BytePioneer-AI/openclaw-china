@@ -2,12 +2,15 @@
  * 微信客服渠道配置 schema
  */
 import { z } from "zod";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import type {
   ResolvedWecomKfAccount,
   WecomKfAccountConfig,
   WecomKfConfig,
   WecomKfDmPolicy,
+  WecomKfASRCredentials,
 } from "./types.js";
 
 /** 默认账户 ID */
@@ -22,11 +25,35 @@ const WecomKfAccountSchema = z.object({
   receiveId: z.string().optional(),
   corpId: z.string().optional(),
   corpSecret: z.string().optional(),
-  agentId: z.string().optional(),
+  openKfid: z.string().optional(),
   apiBaseUrl: z.string().optional(),
   welcomeText: z.string().optional(),
   dmPolicy: z.enum(["open", "pairing", "allowlist", "disabled"]).optional(),
   allowFrom: z.array(z.string()).optional(),
+  inboundMedia: z
+    .object({
+      enabled: z.boolean().optional(),
+      dir: z.string().optional(),
+      maxBytes: z.number().optional(),
+      keepDays: z.number().optional(),
+    })
+    .optional(),
+  voiceTranscode: z
+    .object({
+      enabled: z.boolean().optional(),
+      prefer: z.enum(["amr"]).optional(),
+    })
+    .optional(),
+  asr: z
+    .object({
+      enabled: z.boolean().optional(),
+      appId: z.string().optional(),
+      secretId: z.string().optional(),
+      secretKey: z.string().optional(),
+      engineType: z.string().optional(),
+      timeoutMs: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const WecomKfConfigSchema = WecomKfAccountSchema.extend({
@@ -36,24 +63,62 @@ export const WecomKfConfigSchema = WecomKfAccountSchema.extend({
 
 export type ParsedWecomKfConfig = z.infer<typeof WecomKfConfigSchema>;
 
+const MEDIA_SCHEMA_PROPERTIES = {
+  inboundMedia: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      enabled: { type: "boolean" },
+      dir: { type: "string" },
+      maxBytes: { type: "number" },
+      keepDays: { type: "number" },
+    },
+  },
+  voiceTranscode: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      enabled: { type: "boolean" },
+      prefer: { type: "string", enum: ["amr"] },
+    },
+  },
+  asr: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      enabled: { type: "boolean" },
+      appId: { type: "string" },
+      secretId: { type: "string" },
+      secretKey: { type: "string" },
+      engineType: { type: "string" },
+      timeoutMs: { type: "number" },
+    },
+  },
+} as const;
+
+const BASE_ACCOUNT_PROPERTIES = {
+  name: { type: "string" },
+  enabled: { type: "boolean" },
+  webhookPath: { type: "string" },
+  token: { type: "string" },
+  encodingAESKey: { type: "string" },
+  receiveId: { type: "string" },
+  corpId: { type: "string" },
+  corpSecret: { type: "string" },
+  openKfid: { type: "string" },
+  apiBaseUrl: { type: "string" },
+  welcomeText: { type: "string" },
+  dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
+  allowFrom: { type: "array", items: { type: "string" } },
+  ...MEDIA_SCHEMA_PROPERTIES,
+} as const;
+
 export const WecomKfConfigJsonSchema = {
   schema: {
     type: "object",
     additionalProperties: false,
     properties: {
-      name: { type: "string" },
-      enabled: { type: "boolean" },
-      webhookPath: { type: "string" },
-      token: { type: "string" },
-      encodingAESKey: { type: "string" },
-      receiveId: { type: "string" },
-      corpId: { type: "string" },
-      corpSecret: { type: "string" },
-      agentId: { type: "string" },
-      apiBaseUrl: { type: "string" },
-      welcomeText: { type: "string" },
-      dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
-      allowFrom: { type: "array", items: { type: "string" } },
+      ...BASE_ACCOUNT_PROPERTIES,
       defaultAccount: { type: "string" },
       accounts: {
         type: "object",
@@ -61,19 +126,7 @@ export const WecomKfConfigJsonSchema = {
           type: "object",
           additionalProperties: false,
           properties: {
-            name: { type: "string" },
-            enabled: { type: "boolean" },
-            webhookPath: { type: "string" },
-            token: { type: "string" },
-            encodingAESKey: { type: "string" },
-            receiveId: { type: "string" },
-            corpId: { type: "string" },
-            corpSecret: { type: "string" },
-            agentId: { type: "string" },
-            apiBaseUrl: { type: "string" },
-            welcomeText: { type: "string" },
-            dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist", "disabled"] },
-            allowFrom: { type: "array", items: { type: "string" } },
+            ...BASE_ACCOUNT_PROPERTIES,
           },
         },
       },
@@ -151,12 +204,12 @@ export function resolveWecomKfAccount(params: { cfg: PluginConfig; accountId?: s
   // 微信客服接口配置
   const corpId = merged.corpId?.trim() || resolveEnv("WECOM_KF_CORP_ID");
   const corpSecret = merged.corpSecret?.trim() || resolveEnv("WECOM_KF_CORP_SECRET");
-  const agentId = merged.agentId?.trim() || resolveEnv("WECOM_KF_AGENT_ID");
+  const openKfid = merged.openKfid?.trim() || resolveEnv("WECOM_KF_OPEN_KFID");
   const receiveId = merged.receiveId?.trim() || corpId || "";
   const apiBaseUrl = merged.apiBaseUrl?.trim() || resolveEnv("WECOM_KF_API_BASE_URL");
 
   const configured = Boolean(token && encodingAESKey);
-  const canSend = Boolean(corpId && corpSecret && agentId);
+  const canSend = Boolean(corpId && corpSecret && openKfid);
 
   return {
     accountId,
@@ -168,9 +221,9 @@ export function resolveWecomKfAccount(params: { cfg: PluginConfig; accountId?: s
     receiveId,
     corpId,
     corpSecret,
-    agentId,
+    openKfid,
     canSend,
-    config: { ...merged, corpSecret, agentId, apiBaseUrl, receiveId },
+    config: { ...merged, corpSecret, openKfid, apiBaseUrl, receiveId },
   };
 }
 
@@ -194,4 +247,48 @@ export function resolveApiBaseUrl(config: WecomKfAccountConfig): string {
   const raw = (config.apiBaseUrl ?? "").trim();
   if (!raw) return DEFAULT_WECOM_KF_API_BASE_URL;
   return raw.replace(/\/+$/, "");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 入站媒体配置解析
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_INBOUND_MEDIA_DIR = join(homedir(), ".openclaw", "media", "wecom-kf", "inbound");
+const DEFAULT_INBOUND_MEDIA_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const DEFAULT_INBOUND_MEDIA_KEEP_DAYS = 7;
+
+export function resolveInboundMediaEnabled(config: WecomKfAccountConfig): boolean {
+  if (typeof config.inboundMedia?.enabled === "boolean") return config.inboundMedia.enabled;
+  return true;
+}
+
+export function resolveInboundMediaDir(config: WecomKfAccountConfig): string {
+  return (config.inboundMedia?.dir ?? "").trim() || DEFAULT_INBOUND_MEDIA_DIR;
+}
+
+export function resolveInboundMediaMaxBytes(config: WecomKfAccountConfig): number {
+  const v = config.inboundMedia?.maxBytes;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : DEFAULT_INBOUND_MEDIA_MAX_BYTES;
+}
+
+export function resolveInboundMediaKeepDays(config: WecomKfAccountConfig): number {
+  const v = config.inboundMedia?.keepDays;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : DEFAULT_INBOUND_MEDIA_KEEP_DAYS;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASR 配置解析
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function resolveWecomKfASRCredentials(config: WecomKfAccountConfig): WecomKfASRCredentials | undefined {
+  const asr = config.asr;
+  if (!asr?.enabled) return undefined;
+  if (!asr.appId || !asr.secretId || !asr.secretKey) return undefined;
+  return {
+    appId: asr.appId,
+    secretId: asr.secretId,
+    secretKey: asr.secretKey,
+    engineType: asr.engineType,
+    timeoutMs: asr.timeoutMs,
+  };
 }
