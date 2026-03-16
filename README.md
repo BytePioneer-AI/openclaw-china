@@ -56,6 +56,12 @@
       <td><a href="doc/guides/wecom-app/configuration.md">企业微信自建应用配置指南</a></td>
     </tr>
     <tr>
+      <td>企业微信（微信客服-外部微信用户）</td>
+      <td align="center">✅ 可用</td>
+      <td align="center">中等</td>
+      <td><a href="doc/guides/wecom-kf/configuration.md">企业微信客服配置指南</a></td>
+    </tr>
+    <tr>
       <td>飞书（停止维护）</td>
       <td align="center">✅ 可用</td>
       <td align="center">中等</td>
@@ -102,26 +108,31 @@
 - **【全网首发】钉钉、QQ、企微支持文件接受和发送**
 - **【全网首发】钉钉、QQ、飞书支持定时任务；企微智能机器人长连接支持受限主动发送**
 
-| 功能 | 钉钉 | 飞书 | QQ | 企业微信<br />智能机器人<br />长连接（无需公网IP） | 企业微信自建应用<br />（可接入普通微信） |
-|------|:----:|:----:|:--:|:------------------:|:----------------:|
-| 文本消息 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Markdown | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 流式响应 | ✅ | - | ⚠️<br />私聊实时分条回发 | ✅ | ❌ |
-| 图片/文件 | ✅  | ✅<br />（仅发送） | ✅<br />（出站：私聊任意类型， 群聊仅图片） | ✅（出站文件受限） | ✅<br />（出站任意类型；入站允许图片、音视频、定位、语音） |
-| 语音消息 | ✅ | - | ✅ | ✅ | ✅ |
-| 私聊 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 群聊 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| 多账户 | ✅ | -  | ✅ | ✅ | ✅ |
-| 主动发送消息<br />（定时任务） | ✅ | ✅ | ✅ | ✅ | ✅（文本、图片、Markdown） |
-| 连接方式 | Stream | WebSocket | - | WebSocket 长连接 | HTTPS 回调 |
-| Access Token 缓存 | - | - | - | - | ✅（2 小时有效期） |
+| 功能 | 钉钉 | 飞书 | QQ | 企业微信<br />智能机器人<br />长连接 | 企业微信自建应用<br />（可接入普通微信） | 企业微信客服<br />（外部微信用户） |
+|------|:----:|:----:|:--:|:------------------:|:----------------:|:---------------:|
+| 文本消息 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Markdown | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| 流式响应 | ✅ | - | ⚠️<br />私聊实时分条回发 | ✅ | ❌ | ❌ |
+| 图片/文件 | ✅  | ✅<br />（仅发送） | ✅<br />（出站：私聊任意类型， 群聊仅图片） | ✅（出站文件受限） | ✅<br />（出站任意类型；入站允许图片、音视频、定位、语音） | ⚠️<br />开发中 |
+| 语音消息 | ✅ | - | ✅ | ✅ | ✅ | ⚠️<br />开发中 |
+| 私聊 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 群聊 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| 多账户 | ✅ | -  | ✅ | ✅ | ✅ | ⚠️<br />开发中 |
+| 主动发送消息<br />（定时任务） | ✅ | ✅ | ✅ | ✅ | ✅（文本、图片、Markdown） | ⚠️<br />开发中 |
 
 > 说明：QQ 不支持平台原生 token 级流式输出，但在私聊里配合 `replyFinalOnly=false` 与 `/verbose on` 时，assistant 过渡说明和 tool 日志会按真实生成顺序分条实时回发。
+>
+> `wecom-kf` 当前已支持外部微信用户文本会话闭环和 `enter_session` 欢迎语；多账户、文件收发、定时任务仍在开发中。
 
 ## 更新日志
 
 <details>
 <summary><strong>点击展开更新日志</strong></summary>
+
+### 2026-03-16
+- 新增 `wecom-kf` 微信客服渠道，打通首版最小闭环：支持回调 `GET/POST` 验证、`sync_msg` 拉取真实消息、外部微信用户文本消息入站、Agent 文本回复回发，以及 `enter_session` 欢迎语。
+- `openclaw china setup` 和统一渠道包现在已支持 `WeCom KF（微信客服）`，可直接录入 `corpId`、微信客服 `Secret`、回调 `Token` / `EncodingAESKey`、`openKfId` 等参数，并补齐相关类型与测试。
+
 
 ### 2026-03-15
 - `qqbot` 新增 `停止` / `/stop` 快速通道。当前任务正在执行时，这类中断命令会绕过本地排队立即发送给 OpenClaw，并丢弃同一会话里尚未处理的排队消息，减少“停不下来还继续串消息”的情况。
@@ -250,6 +261,11 @@ openclaw china setup
 
 ```bash
 openclaw plugins install @openclaw-china/wecom-app
+openclaw china setup
+```
+
+```bash
+openclaw plugins install @openclaw-china/wecom-kf
 openclaw china setup
 ```
 
@@ -401,6 +417,32 @@ cp -a ~/.openclaw/extensions/openclaw-china/extensions/wecom-app/skills/wecom-ap
 ```
 
 > 说明：Workspace > 全局（`~/.openclaw/skills`）> 内置 skills。复制后无需重启网关。
+
+</details>
+
+<details>
+<summary><strong>企业微信（微信客服-外部微信用户）</strong></summary>
+
+> 📖 **[企业微信客服配置指南](doc/guides/wecom-kf/configuration.md)** — 适合让外部微信用户通过客服入口与 Agent 对话
+
+企业微信客服运行时使用的是微信客服 API 参数，不是普通自建应用的 `agentId` / 应用 `Secret`：
+
+```bash
+openclaw config set channels.wecom-kf.enabled true
+openclaw config set channels.wecom-kf.webhookPath /wecom-kf
+openclaw config set channels.wecom-kf.token your-token
+openclaw config set channels.wecom-kf.encodingAESKey your-43-char-encoding-aes-key
+openclaw config set channels.wecom-kf.corpId your-corp-id
+openclaw config set channels.wecom-kf.corpSecret your-wecom-kf-secret
+openclaw config set channels.wecom-kf.openKfId your-open-kfid
+openclaw config set channels.wecom-kf.welcomeText "你好，我是 AI 客服，请问有什么可以帮你？"
+```
+
+**注意事项**
+
+- 需要先在微信客服后台完成回调 URL 校验并点“开始使用”，通常之后才会显示微信客服 `corpSecret`
+- 后台仍需要关联一个企业微信自建应用作为“可调用接口的应用”，但插件配置里不需要填写普通自建应用的 `agentId`
+- 当前已支持文本入站、文本回发和 `enter_session` 欢迎语；多账户、文件收发、定时任务正在开发中
 
 </details>
 
