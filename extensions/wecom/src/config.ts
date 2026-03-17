@@ -6,6 +6,7 @@ import type {
   WecomAccountConfig,
   WecomConfig,
   WecomDmPolicy,
+  WecomFooterConfig,
   WecomGroupPolicy,
   WecomTransportMode,
   WecomWsImageReplyMode,
@@ -40,6 +41,12 @@ const WecomAccountSchema = z.object({
   groupPolicy: z.enum(["open", "allowlist", "disabled"]).optional(),
   groupAllowFrom: z.array(z.string()).optional(),
   requireMention: z.boolean().optional(),
+  footer: z
+    .object({
+      status: z.boolean().optional(),
+      elapsed: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const WecomConfigSchema = WecomAccountSchema.extend({
@@ -75,6 +82,14 @@ export const WecomConfigJsonSchema = {
       groupPolicy: { type: "string", enum: ["open", "allowlist", "disabled"] },
       groupAllowFrom: { type: "array", items: { type: "string" } },
       requireMention: { type: "boolean" },
+      footer: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          status: { type: "boolean" },
+          elapsed: { type: "boolean" },
+        },
+      },
       defaultAccount: { type: "string" },
       accounts: {
         type: "object",
@@ -102,7 +117,15 @@ export const WecomConfigJsonSchema = {
             allowFrom: { type: "array", items: { type: "string" } },
             groupPolicy: { type: "string", enum: ["open", "allowlist", "disabled"] },
             groupAllowFrom: { type: "array", items: { type: "string" } },
-            requireMention: { type: "boolean" }
+            requireMention: { type: "boolean" },
+            footer: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                status: { type: "boolean" },
+                elapsed: { type: "boolean" },
+              },
+            }
           }
         }
       }
@@ -168,7 +191,13 @@ function mergeWecomAccountConfig(cfg: PluginConfig, accountId: string): WecomAcc
   const base = (cfg.channels?.wecom ?? {}) as WecomConfig;
   const { accounts: _ignored, defaultAccount: _ignored2, ...baseConfig } = base;
   const account = resolveAccountConfig(cfg, accountId) ?? {};
-  return { ...baseConfig, ...account };
+  const footer: WecomFooterConfig | undefined =
+    baseConfig.footer || account.footer ? { ...(baseConfig.footer ?? {}), ...(account.footer ?? {}) } : undefined;
+  return {
+    ...baseConfig,
+    ...account,
+    footer,
+  };
 }
 
 export function resolveWecomAccount(params: { cfg: PluginConfig; accountId?: string | null }): ResolvedWecomAccount {

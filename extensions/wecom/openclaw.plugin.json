@@ -30,6 +30,14 @@
       "groupPolicy": { "type": "string", "enum": ["open", "allowlist", "disabled"] },
       "groupAllowFrom": { "type": "array", "items": { "type": "string" } },
       "requireMention": { "type": "boolean" },
+      "footer": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": { "type": "boolean" },
+          "elapsed": { "type": "boolean" }
+        }
+      },
       "defaultAccount": { "type": "string" },
       "accounts": {
         "type": "object",
@@ -57,7 +65,15 @@
             "allowFrom": { "type": "array", "items": { "type": "string" } },
             "groupPolicy": { "type": "string", "enum": ["open", "allowlist", "disabled"] },
             "groupAllowFrom": { "type": "array", "items": { "type": "string" } },
-            "requireMention": { "type": "boolean" }
+            "requireMention": { "type": "boolean" },
+            "footer": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "status": { "type": "boolean" },
+                "elapsed": { "type": "boolean" }
+              }
+            }
           }
         }
       }

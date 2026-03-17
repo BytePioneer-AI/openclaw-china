@@ -87,6 +87,7 @@ function createWebhookAccount(path: string): ResolvedWecomAccount {
 describe("wecom webhook transport regressions", () => {
   afterEach(() => {
     clearOutboundReplyState();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -230,6 +231,131 @@ describe("wecom webhook transport regressions", () => {
       expect(streamedReply.msgtype).toBe("stream");
       expect(streamedReply.stream?.content).toContain("hello from reply pipeline");
       expect(streamedReply.stream?.finish).toBe(false);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("appends completion footer metadata to finished webhook streams when enabled", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-17T10:00:00.000Z"));
+
+    const account = {
+      ...createWebhookAccount("/hook-footer"),
+      config: {
+        mode: "webhook",
+        webhookPath: "/hook-footer",
+        token,
+        encodingAESKey,
+        footer: {
+          status: true,
+          elapsed: true,
+        },
+      },
+    };
+    const unregister = registerWecomWebhookTarget({
+      account,
+      config: {} as PluginConfig,
+      runtime: {},
+      path: "/hook-footer",
+    });
+
+    try {
+      const timestamp = "1700000100";
+      const nonce = "nonce-footer-1";
+      const plain = JSON.stringify({
+        msgid: "msg-stream-footer-1",
+        aibotid: "bot-1",
+        chattype: "single",
+        from: { userid: "user-stream-footer-1" },
+        msgtype: "text",
+        text: { content: "hello" },
+      });
+      const encrypt = encryptWecomPlaintext({
+        encodingAESKey,
+        plaintext: plain,
+      });
+      const msgSignature = computeWecomMsgSignature({
+        token,
+        timestamp,
+        nonce,
+        encrypt,
+      });
+
+      const req = createMockRequest({
+        method: "POST",
+        url: `/hook-footer?msg_signature=${encodeURIComponent(msgSignature)}&timestamp=${encodeURIComponent(timestamp)}&nonce=${encodeURIComponent(nonce)}`,
+        body: { encrypt },
+      });
+      const res = createMockResponse();
+
+      const handledPromise = handleWecomWebhookRequest(req, res);
+      await vi.advanceTimersByTimeAsync(850);
+      const handled = await handledPromise;
+      expect(handled).toBe(true);
+
+      const initialReply = JSON.parse(
+        decryptWecomEncrypted({
+          encodingAESKey,
+          encrypt: String((JSON.parse(res._getData()) as { encrypt: string }).encrypt),
+        })
+      ) as {
+        msgtype: string;
+        stream?: { id?: string; content?: string; finish?: boolean };
+      };
+      expect(initialReply.stream?.id).toBeTruthy();
+      expect(initialReply.stream?.finish).toBe(false);
+
+      expect(
+        appendWecomActiveStreamChunk({
+          accountId: account.accountId,
+          to: "user:user-stream-footer-1",
+          chunk: "hello from reply pipeline",
+        })
+      ).toBe(true);
+
+      vi.setSystemTime(new Date("2026-03-17T10:00:03.200Z"));
+      await vi.advanceTimersByTimeAsync(2_600);
+
+      const streamQueryPlain = JSON.stringify({
+        msgtype: "stream",
+        stream: {
+          id: initialReply.stream?.id,
+        },
+      });
+      const streamQueryEncrypt = encryptWecomPlaintext({
+        encodingAESKey,
+        plaintext: streamQueryPlain,
+      });
+      const streamQuerySignature = computeWecomMsgSignature({
+        token,
+        timestamp: "1700000101",
+        nonce: "nonce-footer-2",
+        encrypt: streamQueryEncrypt,
+      });
+      const streamReq = createMockRequest({
+        method: "POST",
+        url: `/hook-footer?msg_signature=${encodeURIComponent(streamQuerySignature)}&timestamp=1700000101&nonce=nonce-footer-2`,
+        body: { encrypt: streamQueryEncrypt },
+      });
+      const streamRes = createMockResponse();
+
+      const streamHandled = await handleWecomWebhookRequest(streamReq, streamRes);
+      expect(streamHandled).toBe(true);
+      expect(streamRes._getStatusCode()).toBe(200);
+
+      const streamedReply = JSON.parse(
+        decryptWecomEncrypted({
+          encodingAESKey,
+          encrypt: String((JSON.parse(streamRes._getData()) as { encrypt: string }).encrypt),
+        })
+      ) as {
+        msgtype: string;
+        stream?: { content?: string; finish?: boolean };
+      };
+      expect(streamedReply.msgtype).toBe("stream");
+      expect(streamedReply.stream?.finish).toBe(true);
+      expect(streamedReply.stream?.content).toBe("hello from reply pipeline\n\n——\n已完成 · 耗时 5.7s");
     } finally {
       unregister();
     }

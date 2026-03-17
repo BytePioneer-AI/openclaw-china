@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   appendWecomWsActiveStreamChunk,
@@ -18,6 +18,7 @@ import {
 describe("wecom ws reply context", () => {
   afterEach(() => {
     clearWecomWsReplyContextsForAccount("acc-1");
+    vi.restoreAllMocks();
   });
 
   it("separates multiple OpenClaw reply payloads with blank lines and repeats the final content on finish", async () => {
@@ -183,6 +184,91 @@ describe("wecom ws reply context", () => {
           id: "stream-2",
           finish: true,
           content: "partial answer\n\nError: upstream failed",
+        },
+      },
+    });
+  });
+
+  it("appends completion status and elapsed footer on finish when enabled", async () => {
+    const sent: unknown[] = [];
+    let currentTime = 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+    registerWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-footer",
+      to: "user:alice",
+      footer: {
+        status: true,
+        elapsed: true,
+      },
+      send: async (frame) => {
+        sent.push(frame);
+      },
+      streamId: "stream-footer",
+    });
+
+    currentTime = 1_800;
+    await appendWecomWsActiveStreamChunk({
+      accountId: "acc-1",
+      to: "user:alice",
+      chunk: "final answer",
+    });
+    currentTime = 4_200;
+    await finishWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-footer",
+    });
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-footer",
+          finish: true,
+          content: "final answer\n\n——\n已完成 · 耗时 3.2s",
+        },
+      },
+    });
+  });
+
+  it("appends error status footer on failed finish when enabled", async () => {
+    const sent: unknown[] = [];
+    let currentTime = 2_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+    registerWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-footer-error",
+      to: "user:alice",
+      footer: {
+        status: true,
+        elapsed: true,
+      },
+      send: async (frame) => {
+        sent.push(frame);
+      },
+      streamId: "stream-footer-error",
+    });
+
+    currentTime = 2_500;
+    await appendWecomWsActiveStreamChunk({
+      accountId: "acc-1",
+      to: "user:alice",
+      chunk: "partial answer",
+    });
+    currentTime = 5_700;
+    await finishWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-footer-error",
+      error: new Error("upstream failed"),
+    });
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-footer-error",
+          finish: true,
+          content: "partial answer\n\nError: upstream failed\n\n——\n出错 · 耗时 3.7s",
         },
       },
     });

@@ -426,6 +426,7 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
         accountId: account.accountId,
         reqId: callback.reqId,
         to: callback.target,
+        footer: account.config.footer,
         send: async (replyFrame) => {
           await sendSdkReplyFrame({
             client,

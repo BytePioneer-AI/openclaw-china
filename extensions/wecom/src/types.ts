@@ -2,6 +2,10 @@ export type WecomDmPolicy = "open" | "pairing" | "allowlist" | "disabled";
 export type WecomGroupPolicy = "open" | "allowlist" | "disabled";
 export type WecomTransportMode = "webhook" | "ws";
 export type WecomWsImageReplyMode = "native" | "markdown-url";
+export type WecomFooterConfig = {
+  status?: boolean;
+  elapsed?: boolean;
+};
 
 export type WecomAccountConfig = {
   name?: string;
@@ -29,6 +33,7 @@ export type WecomAccountConfig = {
   groupPolicy?: WecomGroupPolicy;
   groupAllowFrom?: string[];
   requireMention?: boolean;
+  footer?: WecomFooterConfig;
 };
 
 export type WecomConfig = WecomAccountConfig & {

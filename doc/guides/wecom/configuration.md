@@ -101,6 +101,8 @@ openclaw config set channels.wecom.enabled true
 openclaw config set channels.wecom.mode ws
 openclaw config set channels.wecom.botId your-bot-id
 openclaw config set channels.wecom.secret your-secret
+openclaw config set channels.wecom.footer.elapsed true
+openclaw config set channels.wecom.footer.status true
 ```
 
 也可以直接编辑配置：
@@ -112,7 +114,11 @@ openclaw config set channels.wecom.secret your-secret
       "enabled": true,
       "mode": "ws",
       "botId": "your-bot-id",
-      "secret": "your-secret"
+      "secret": "your-secret",
+      "footer": {
+        "elapsed": true,
+        "status": true
+      }
     }
   }
 }
@@ -124,6 +130,10 @@ openclaw config set channels.wecom.secret your-secret
 - `heartbeatIntervalMs`: 心跳间隔，默认 30000
 - `reconnectInitialDelayMs`: 首次重连延迟，默认 1000
 - `reconnectMaxDelayMs`: 最大重连延迟，默认 30000
+- `footer.elapsed`: 在最终回复尾部显示耗时
+- `footer.status`: 在最终回复尾部显示状态（已完成 / 出错 / 已停止）
+
+当前 `footer.*` 按“文本尾注”渲染，适用于 `ws` 和 `webhook`；这不是飞书 CardKit 那种独立卡片 footer 槽位。
 
 ## 四、启动并验证
 
@@ -138,4 +148,3 @@ openclaw gateway --port 18789 --verbose
 ```bash
 openclaw daemon start
 ```
-

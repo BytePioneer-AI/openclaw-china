@@ -6,6 +6,7 @@ import { createLogger, type Logger } from "@openclaw-china/shared";
 import type { ResolvedWecomAccount, WecomInboundMessage } from "./types.js";
 import type { PluginConfig } from "./config.js";
 import { decryptWecomEncrypted, encryptWecomPlaintext, verifyWecomSignature, computeWecomMsgSignature } from "./crypto.js";
+import { appendWecomFooterText, buildWecomFooterText, type ResolvedWecomFooterConfig, resolveWecomFooterConfig } from "./footer.js";
 import { dispatchWecomMessage } from "./bot.js";
 import { tryGetWecomRuntime } from "./runtime.js";
 import { handleTempMediaRequest, rememberAccountPublicBaseUrl } from "./outbound-reply.js";
@@ -33,6 +34,7 @@ type StreamState = {
   finished: boolean;
   error?: string;
   content: string;
+  footer: ResolvedWecomFooterConfig;
 };
 
 type StreamRouteBinding = {
@@ -412,7 +414,20 @@ function buildStreamPlaceholderReply(streamId: string): { msgtype: "stream"; str
 }
 
 function buildStreamReplyFromState(state: StreamState): { msgtype: "stream"; stream: { id: string; finish: boolean; content?: string } } {
-  const content = truncateUtf8Bytes(state.content, STREAM_MAX_BYTES);
+  const content = truncateUtf8Bytes(
+    appendWecomFooterText(
+      state.content,
+      state.finished
+        ? buildWecomFooterText({
+            footer: state.footer,
+            createdAt: state.createdAt,
+            finishedAt: state.updatedAt,
+            isError: Boolean(state.error),
+          })
+        : ""
+    ) ?? "",
+    STREAM_MAX_BYTES
+  );
   const stream: { id: string; finish: boolean; content?: string } = {
     id: state.streamId,
     finish: state.finished,
@@ -898,6 +913,7 @@ export async function handleWecomWebhookRequest(req: IncomingMessage, res: Serve
           started: true,
           finished: true,
           content: "",
+          footer: resolveWecomFooterConfig(),
         });
     const encReply = buildEncryptedJsonReply({
       account: target.account,
@@ -990,6 +1006,7 @@ export async function handleWecomWebhookRequest(req: IncomingMessage, res: Serve
     started: false,
     finished: false,
     content: "",
+    footer: resolveWecomFooterConfig(target.account.config.footer),
   });
 
   const core = tryGetWecomRuntime();

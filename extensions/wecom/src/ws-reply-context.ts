@@ -1,3 +1,4 @@
+import { appendWecomFooterText, buildWecomFooterText, resolveWecomFooterConfig, type ResolvedWecomFooterConfig } from "./footer.js";
 import type { WecomWsFrame } from "./ws-protocol.js";
 import {
   buildWecomWsRespondMediaCommand,
@@ -24,6 +25,7 @@ type WsMessageContext = {
   updatedAt: number;
   sessionKey?: string;
   runId?: string;
+  footer: ResolvedWecomFooterConfig;
   started: boolean;
   finished: boolean;
   queue: Promise<void>;
@@ -251,6 +253,10 @@ export function registerWecomWsMessageContext(params: {
   to: string;
   send: WsSendFrame;
   streamId?: string;
+  footer?: {
+    status?: boolean;
+    elapsed?: boolean;
+  };
 }): string {
   pruneContexts();
   const key = messageKey(params.accountId.trim(), params.reqId.trim());
@@ -265,6 +271,7 @@ export function registerWecomWsMessageContext(params: {
     pendingAutoImagePaths: [],
     createdAt: now(),
     updatedAt: now(),
+    footer: resolveWecomFooterConfig(params.footer),
     started: false,
     finished: false,
     queue: Promise.resolve(),
@@ -510,13 +517,22 @@ export async function finishWecomWsMessageContext(params: {
         ? `${context.content}\n\n${errorMessage}`
         : errorMessage
       : context.content;
-    const sendFinish = context.started || Boolean(finalContent) || context.msgItems.length > 0;
+    const finishContent = appendWecomFooterText(
+      finalContent || undefined,
+      buildWecomFooterText({
+        footer: context.footer,
+        createdAt: context.createdAt,
+        finishedAt: now(),
+        isError: Boolean(params.error),
+      })
+    );
+    const sendFinish = context.started || Boolean(finishContent) || context.msgItems.length > 0;
     if (sendFinish) {
       await context.send(
         buildWecomWsRespondMessageCommand({
           reqId: context.reqId,
           streamId: context.streamId,
-          content: finalContent || undefined,
+          content: finishContent,
           finish: true,
           msgItems: context.msgItems,
         })

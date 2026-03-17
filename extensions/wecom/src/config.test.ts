@@ -5,6 +5,7 @@ import {
   DEFAULT_WECOM_WS_RECONNECT_INITIAL_MS,
   DEFAULT_WECOM_WS_RECONNECT_MAX_MS,
   DEFAULT_WECOM_WS_URL,
+  parseWecomConfig,
   resolveWecomAccount,
 } from "./config.js";
 
@@ -85,5 +86,71 @@ describe("resolveWecomAccount", () => {
     });
 
     expect(account.wsImageReplyMode).toBe("markdown-url");
+  });
+
+  it("merges footer config from top-level defaults and per-account overrides", () => {
+    const account = resolveWecomAccount({
+      cfg: {
+        channels: {
+          wecom: {
+            mode: "ws",
+            botId: "bot-123",
+            secret: "secret-xyz",
+            footer: {
+              status: true,
+              elapsed: false,
+            },
+            accounts: {
+              zhugeliang: {
+                botId: "bot-456",
+                secret: "secret-456",
+                footer: {
+                  elapsed: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      accountId: "zhugeliang",
+    });
+
+    expect(account.config.footer).toEqual({
+      status: true,
+      elapsed: true,
+    });
+  });
+
+  it("parses footer flags from schema", () => {
+    const parsed = parseWecomConfig({
+      mode: "ws",
+      botId: "bot-123",
+      secret: "secret-xyz",
+      footer: {
+        status: true,
+        elapsed: true,
+      },
+      accounts: {
+        main: {
+          footer: {
+            elapsed: false,
+          },
+        },
+      },
+    });
+
+    expect(parsed).toMatchObject({
+      footer: {
+        status: true,
+        elapsed: true,
+      },
+      accounts: {
+        main: {
+          footer: {
+            elapsed: false,
+          },
+        },
+      },
+    });
   });
 });
