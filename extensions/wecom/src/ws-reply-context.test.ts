@@ -10,6 +10,7 @@ import {
   registerWecomWsEventContext,
   registerWecomWsMessageContext,
   registerWecomWsPendingAutoImagePaths,
+  sendWecomWsMessagePlaceholder,
   sendWecomWsActiveTemplateCard,
 } from "./ws-reply-context.js";
 
@@ -181,6 +182,69 @@ describe("wecom ws reply context", () => {
           id: "stream-2",
           finish: true,
           content: "partial answer\n\nError: upstream failed",
+        },
+      },
+    });
+  });
+
+  it("sends a placeholder frame that gets overwritten by the first real chunk", async () => {
+    const sent: unknown[] = [];
+    registerWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-placeholder",
+      to: "user:alice",
+      send: async (frame) => {
+        sent.push(frame);
+      },
+      streamId: "stream-placeholder",
+    });
+
+    await expect(
+      sendWecomWsMessagePlaceholder({
+        accountId: "acc-1",
+        reqId: "req-placeholder",
+        content: "⏳",
+      })
+    ).resolves.toBe(true);
+
+    await expect(
+      appendWecomWsActiveStreamChunk({
+        accountId: "acc-1",
+        to: "user:alice",
+        chunk: "final answer",
+      })
+    ).resolves.toBe(true);
+
+    await finishWecomWsMessageContext({
+      accountId: "acc-1",
+      reqId: "req-placeholder",
+    });
+
+    expect(sent).toHaveLength(3);
+    expect(sent[0]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-placeholder",
+          finish: false,
+          content: "⏳",
+        },
+      },
+    });
+    expect(sent[1]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-placeholder",
+          finish: false,
+          content: "final answer",
+        },
+      },
+    });
+    expect(sent[2]).toMatchObject({
+      body: {
+        stream: {
+          id: "stream-placeholder",
+          finish: true,
+          content: "final answer",
         },
       },
     });

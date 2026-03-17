@@ -13,6 +13,7 @@ import {
   registerWecomWsEventContext,
   registerWecomWsMessageContext,
   scheduleWecomWsMessageContextFinish,
+  sendWecomWsMessagePlaceholder,
 } from "./ws-reply-context.js";
 import { normalizeWecomWsCallback, type WecomWsFrame } from "./ws-protocol.js";
 
@@ -379,6 +380,15 @@ export async function startWecomWsGateway(opts: StartWecomWsGatewayOptions): Pro
         msg: callback.msg,
         core,
         hooks: {
+          onAccepted: () => {
+            void sendWecomWsMessagePlaceholder({
+              accountId: account.accountId,
+              reqId: callback.reqId,
+              content: "⏳",
+            }).catch((err) => {
+              logger.warn(`wecom ws placeholder ack failed: ${String(err)}`);
+            });
+          },
           onRouteContext: (context) => {
             bindWecomWsRouteContext({
               accountId: account.accountId,

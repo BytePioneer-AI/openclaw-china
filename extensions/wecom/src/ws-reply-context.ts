@@ -269,6 +269,33 @@ export function registerWecomWsMessageContext(params: {
   return context.streamId;
 }
 
+export async function sendWecomWsMessagePlaceholder(params: {
+  accountId: string;
+  reqId: string;
+  content: string;
+}): Promise<boolean> {
+  pruneMessageContexts();
+  const key = messageKey(params.accountId.trim(), params.reqId.trim());
+  const context = messageContexts.get(key);
+  const content = params.content.trim();
+  if (!context || context.finished || context.started || !content) return false;
+
+  await enqueue(context, async () => {
+    if (context.finished || context.started) return;
+    await context.send(
+      buildWecomWsRespondMessageCommand({
+        reqId: context.reqId,
+        streamId: context.streamId,
+        content,
+        finish: false,
+      })
+    );
+    context.started = true;
+    context.updatedAt = now();
+  });
+  return true;
+}
+
 export function registerWecomWsEventContext(params: {
   accountId: string;
   reqId: string;

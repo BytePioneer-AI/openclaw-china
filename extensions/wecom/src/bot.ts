@@ -38,6 +38,7 @@ import { buildWecomNativeReplyImageItem, WECOM_REPLY_MSG_ITEM_LIMIT, type WecomR
 import { consumeWecomWsPendingAutoImagePaths, registerWecomWsPendingAutoImagePaths } from "./ws-reply-context.js";
 
 export type WecomDispatchHooks = {
+  onAccepted?: () => void;
   onRouteContext?: (context: { sessionKey?: string; runId?: string }) => void;
   onChunk: (text: string) => void | Promise<void>;
   onRichChunk?: (chunk: WecomWsReplyChunk) => void | Promise<void>;
@@ -423,6 +424,11 @@ export async function dispatchWecomMessage(params: {
     accountId: account.accountId,
     peer: { kind: chatType === "group" ? "group" : "dm", id: chatId },
   });
+  try {
+    hooks.onAccepted?.();
+  } catch (err) {
+    logger.warn(`wecom accepted hook failed: ${String(err)}`);
+  }
 
   // 处理媒体文件（下载和解密）
   const mediaResult = await processMediaInMessage({
