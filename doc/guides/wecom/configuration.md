@@ -131,6 +131,25 @@ openclaw config set channels.wecom.secret your-secret
 - `blockStreamingCoalesce.idleMs`: 空闲多久强制刷新，默认 `250`
 - `chunkMode`: 默认 `length`；设为 `newline` 时会在段落边界更积极地刷新
 
+流式颗粒度参数说明：
+
+| 参数 | 默认值 | 作用 | 调大后的效果 | 调小后的效果 |
+| --- | --- | --- | --- | --- |
+| `blockStreaming` | `true` | 是否允许模型中间块直接往企微推送 | 关闭后只在更晚阶段出内容，体感更稳但更慢 | 开启后更容易看到中间输出 |
+| `textChunkLimit` | `4000` | 单条文本消息的最大长度上限 | 单次可发更长文本，但对“更流式”帮助不大 | 会更早切块，但过小会增加消息更新次数 |
+| `blockStreamingCoalesce.minChars` | `120` | 聚合至少这么多字符后更倾向立即刷新 | 更像“大段输出” | 更像“小段连续输出” |
+| `blockStreamingCoalesce.maxChars` | `320` | 单块聚合的硬上限 | 每次更新更大、更少 | 每次更新更小、更频繁 |
+| `blockStreamingCoalesce.idleMs` | `250` | 模型暂时停顿多久后强制刷新当前缓冲 | 更新更少、等待更久 | 更新更勤，但太小会显得抖 |
+| `chunkMode` | `length` | 按长度刷出还是按换行/段落边界刷出 | `length` 更稳 | `newline` 更像“边想边打字” |
+
+推荐调参边界：
+
+- 如果你想要“更明显的等待中输出”，优先调小 `idleMs` 和 `maxChars`
+- 如果你想避免企微里更新过于频繁，优先保留 `chunkMode=length`
+- `idleMs` 不建议低于 `100`
+- `maxChars` 不建议低于 `120`
+- `minChars` 不建议高于 `300`，否则又会退回“大块才出字”的体感
+
 如果你希望企业微信更像“实时打字”而不是最后一大块一起出来，推荐这组配置：
 
 ```bash
@@ -145,6 +164,19 @@ openclaw config set channels.wecom.blockStreamingCoalesce.idleMs 180
 ```bash
 openclaw config set channels.wecom.chunkMode newline
 ```
+
+两组推荐档位：
+
+- 稳定优先
+  - `chunkMode=length`
+  - `blockStreamingCoalesce.minChars=120`
+  - `blockStreamingCoalesce.maxChars=320`
+  - `blockStreamingCoalesce.idleMs=250`
+- 流式感优先
+  - `chunkMode=newline`
+  - `blockStreamingCoalesce.minChars=80`
+  - `blockStreamingCoalesce.maxChars=180`
+  - `blockStreamingCoalesce.idleMs=120`
 
 说明：
 
