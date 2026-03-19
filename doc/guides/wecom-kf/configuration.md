@@ -9,7 +9,7 @@
   </p>
 </div>
 
-本文档用于配置 OpenClaw China 的企业微信客服渠道（`wecom-kf`）。
+本文档用于配置 OpenClaw China 的微信客服渠道（`wecom-kf`）。
 
 仓库地址：<https://github.com/BytePioneer-AI/openclaw-china>
 
@@ -121,7 +121,7 @@ openclaw onboard --install-daemon
 openclaw plugins install @openclaw-china/channels
 openclaw china setup
 ```
-仅安装企业微信客服渠道
+仅安装微信客服渠道
 
 ```bash
 openclaw plugins install @openclaw-china/wecom-kf

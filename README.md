@@ -20,7 +20,6 @@
 <p align="center">
   <strong>🤖 推荐：<a href="https://github.com/BytePioneer-AI/clawmate">ClawMate</a></strong> — 为 OpenClaw 添加有温度的角色伴侣
 </p>
-
 <table align="center">
   <thead>
     <tr>
@@ -56,10 +55,10 @@
       <td><a href="doc/guides/wecom-app/configuration.md">企业微信自建应用配置指南</a></td>
     </tr>
     <tr>
-      <td>企业微信（微信客服-外部微信用户）</td>
+      <td>微信客服（微信客服-外部微信用户）</td>
       <td align="center">✅ 可用</td>
       <td align="center">中等</td>
-      <td><a href="doc/guides/wecom-kf/configuration.md">企业微信客服配置指南</a></td>
+      <td><a href="doc/guides/wecom-kf/configuration.md">微信客服配置指南</a></td>
     </tr>
     <tr>
       <td>微信公众号（订阅号 / 服务号 / 测试号）</td>
@@ -73,6 +72,7 @@
       <td align="center">中等</td>
       <td>-</td>
     </tr>
+
 
 
   </tbody>
@@ -120,23 +120,23 @@
 
 - `企业微信自建应用（可接入普通微信）`：可接入普通微信，不支持群聊，需要公网 IP。
 
-- `企业微信客服（外部微信用户）`：适合让任意微信用户通过客服入口与企业的 OpenClaw 对话，不支持群聊，需要公网 IP。
+- `微信客服（外部微信用户）`：适合让任意微信用户通过客服入口与企业的 OpenClaw 对话，不支持群聊，需要公网 IP。
 
-  > 按企业微信客服官方入口范围，理论上还可承接视频号小店、视频号主页、直播间、微信内网页、公众号菜单、小程序、搜一搜品牌官方区、支付凭证等入口，最终都是跳转到客服对话。
+  > 按微信客服官方入口范围，理论上还可承接视频号小店、视频号主页、直播间、微信内网页、公众号菜单、小程序、搜一搜品牌官方区、支付凭证等入口，最终都是跳转到客服对话。
 
 - `微信公众号（订阅号 / 服务号 / 测试号）`：面向公众号粉丝的通用接入方式，支持文本消息收发。订阅号有 5 秒被动回复限制且不支持主动发送；服务号和测试号无限制，支持主动发送消息。需要公网 IP 和域名。
 
-| 功能 | 钉钉 | 飞书 | QQ | 企业微信<br />智能机器人<br />长连接 | 企业微信自建应用<br />（可接入普通微信） | 企业微信客服<br />（外部微信用户） | 微信公众号 |
+| 功能 | 钉钉 | 飞书 | QQ | 企业微信<br />智能机器人<br />长连接 | 企业微信自建应用<br />（可接入普通微信） | 微信客服<br />（外部微信用户） | 微信公众号 |
 |------|:----:|:----:|:--:|:------------------:|:----------------:|:---------------:|:---------:|
 | 文本消息 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Markdown | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| 流式响应 | ✅ | - | ⚠️<br />私聊实时分条回发 | ✅ | ❌ | ❌ | ❌ |
-| 图片/文件 | ✅  | ✅<br /> | ✅<br />（出站：私聊任意类型， 群聊仅图片） | ✅ | ✅<br />（出站任意类型；入站允许图片、音视频、定位、语音） | ⚠️<br />开发中 | ⚠️<br />开发中 |
+| 流式响应 | ✅ | - | - | ✅ | ❌ | ❌ | ❌ |
+| 图片/文件 | ✅  | ✅ | ✅ | ✅ | ✅ | ⚠️<br />开发中 | ⚠️<br />开发中 |
 | 语音消息 | ✅ | - | ✅ | ✅ | ✅ | ⚠️<br />开发中 | ⚠️<br />开发中 |
 | 私聊 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 群聊 | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | 多账户 | ✅ | -  | ✅ | ✅ | ✅ | ⚠️<br />开发中 | ⚠️<br />开发中 |
-| 主动发送消息<br />（定时任务） | ✅ | ✅ | ✅ | ✅ | ✅（文本、图片、Markdown） | ⚠️<br />开发中 | ⚠️<br />开发中 |
+| 主动发送消息<br />（定时任务） | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️<br />开发中 | ⚠️<br />开发中 |
 
 > 说明：QQ 不支持平台原生 token 级流式输出，但在私聊里配合 `replyFinalOnly=false` 与 `/verbose on` 时，assistant 过渡说明和 tool 日志会按真实生成顺序分条实时回发。
 >
@@ -159,7 +159,9 @@
 - `wechat-mp` 现在会把 slash command 显式标记为 `CommandAuthorized=true`，并支持 `activeDeliveryMode`：`split` 按日志 / chunk 逐条主动发送，`merged` 在 reply pipeline 结束后合并为一条主动消息；`passive` 模式仍保持单次 HTTP 回包。
 - `openclaw china setup` 和统一渠道包现在已支持 `WeChat MP（微信公众号）`，可直接录入 `appId`、`appSecret`、回调 `token` / `encodingAESKey`、`messageMode`、`replyMode` 等参数，并补齐相关类型与测试。
 - 发布脚本新增 `wechat-mp` 到统一发布流程。
-- 新增微信公众号配置指南，覆盖订阅号/服务号/测试号三种接入路径。
+- 新增并完善微信公众号配置指南，覆盖订阅号/服务号/测试号三种接入路径、主动发送模式说明和使用场景截图。
+- `wecom-kf` 配置向导。
+- 修复 workspace 依赖与版本配置问题，减少本地联调和发布时的版本错配。
 
 ### 2026-03-18
 
@@ -479,9 +481,9 @@ cp -a ~/.openclaw/extensions/openclaw-china/extensions/wecom-app/skills/wecom-ap
 <details>
 <summary><strong>企业微信（微信客服-外部微信用户）</strong></summary>
 
-> 📖 **[企业微信客服配置指南](doc/guides/wecom-kf/configuration.md)** — 适合让外部微信用户通过客服入口与 Agent 对话
+> 📖 **[微信客服配置指南](doc/guides/wecom-kf/configuration.md)** — 适合让外部微信用户通过客服入口与 Agent 对话
 
-企业微信客服运行时使用的是微信客服 API 参数，不是普通自建应用的 `agentId` / 应用 `Secret`：
+微信客服运行时使用的是微信客服 API 参数，不是普通自建应用的 `agentId` / 应用 `Secret`：
 
 ```bash
 openclaw config set channels.wecom-kf.enabled true
