@@ -16,7 +16,8 @@
  * 
  * 包含 Moltbot 核心 API，用于：
  * - 路由解析 (channel.routing.resolveAgentRoute)
- * - 消息分发 (channel.reply.dispatchReplyFromConfig)
+ * - 实时消息分发 (channel.reply.dispatchReplyWithDispatcher /
+ *   channel.reply.dispatchReplyWithBufferedBlockDispatcher)
  * - 系统事件 (system.enqueueSystemEvent)
  */
 export interface PluginRuntime {
@@ -50,6 +51,18 @@ export interface PluginRuntime {
       }) => Promise<void>;
     };
     reply?: {
+      dispatchReplyWithDispatcher?: (params: {
+        ctx: unknown;
+        cfg: unknown;
+        dispatcherOptions: {
+          deliver: (payload: unknown, info?: { kind?: string }) => Promise<void>;
+          onError?: (err: unknown, info: { kind: string }) => void;
+          onSkip?: (payload: unknown, info: { kind: string; reason: string }) => void;
+          onReplyStart?: () => Promise<void> | void;
+          humanDelay?: unknown;
+        };
+        replyOptions?: unknown;
+      }) => Promise<unknown>;
       dispatchReplyFromConfig?: (params: {
         ctx: unknown;
         cfg: unknown;

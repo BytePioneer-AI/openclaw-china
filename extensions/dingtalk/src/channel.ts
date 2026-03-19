@@ -79,30 +79,46 @@ function canStoreDefaultAccountInAccounts(cfg: PluginConfig): boolean {
   return Boolean(cfg.channels?.dingtalk?.accounts?.[DEFAULT_ACCOUNT_ID]);
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+function hasRealtimeReplyApi(reply: Record<string, unknown> | undefined): boolean {
+  return Boolean(
+    reply?.dispatchReplyWithDispatcher ||
+      reply?.dispatchReplyWithBufferedBlockDispatcher
+  );
+}
+
 function resolveRuntimeCandidate(params: {
   runtime?: unknown;
   channelRuntime?: unknown;
 }): Record<string, unknown> | undefined {
-  const runtimeRecord =
-    params.runtime && typeof params.runtime === "object"
-      ? (params.runtime as Record<string, unknown>)
-      : undefined;
-  const runtimeChannel =
-    runtimeRecord?.channel && typeof runtimeRecord.channel === "object"
-      ? (runtimeRecord.channel as Record<string, unknown>)
-      : undefined;
-  const channelRuntime =
-    params.channelRuntime && typeof params.channelRuntime === "object"
-      ? (params.channelRuntime as Record<string, unknown>)
-      : undefined;
+  const runtimeRecord = asRecord(params.runtime);
+  const runtimeChannel = asRecord(runtimeRecord?.channel);
+  const channelRuntime = asRecord(params.channelRuntime);
 
-  const resolvedChannel =
-    channelRuntime ??
-    (runtimeChannel?.routing || runtimeChannel?.reply || runtimeChannel?.session || runtimeChannel?.text
-      ? runtimeChannel
-      : undefined);
-  if (!resolvedChannel) {
+  if (!runtimeRecord && !channelRuntime) {
+    return undefined;
+  }
+
+  if (!runtimeChannel && !channelRuntime) {
     return runtimeRecord;
+  }
+
+  const resolvedChannel = {
+    ...(runtimeChannel ?? {}),
+    ...(channelRuntime ?? {}),
+  } as Record<string, unknown>;
+
+  for (const key of ["routing", "reply", "session", "text"] as const) {
+    const mergedSection = {
+      ...(asRecord(runtimeChannel?.[key]) ?? {}),
+      ...(asRecord(channelRuntime?.[key]) ?? {}),
+    };
+    if (Object.keys(mergedSection).length > 0) {
+      resolvedChannel[key] = mergedSection;
+    }
   }
 
   return {
@@ -500,13 +516,16 @@ export const dingtalkPlugin = {
         | {
             channel?: {
               routing?: { resolveAgentRoute?: unknown };
-              reply?: { dispatchReplyFromConfig?: unknown };
+              reply?: {
+                dispatchReplyWithDispatcher?: unknown;
+                dispatchReplyWithBufferedBlockDispatcher?: unknown;
+              };
             };
           }
         | undefined;
       if (
         candidate?.channel?.routing?.resolveAgentRoute &&
-        candidate.channel?.reply?.dispatchReplyFromConfig
+        hasRealtimeReplyApi(candidate.channel?.reply as Record<string, unknown> | undefined)
       ) {
         setDingtalkRuntime(runtimeCandidate as Record<string, unknown>);
       }

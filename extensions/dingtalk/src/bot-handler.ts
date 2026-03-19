@@ -1019,14 +1019,12 @@ export async function handleDingtalkMessage(params: {
       logger.debug("core.channel.routing.resolveAgentRoute not available, skipping dispatch");
       return;
     }
-    
-    if (!replyApi?.dispatchReplyFromConfig) {
-      logger.debug("core.channel.reply.dispatchReplyFromConfig not available, skipping dispatch");
-      return;
-    }
 
-    if (!replyApi?.createReplyDispatcher && !replyApi?.createReplyDispatcherWithTyping) {
-      logger.debug("core.channel.reply dispatcher factory not available, skipping dispatch");
+    if (
+      !replyApi?.dispatchReplyWithDispatcher &&
+      !replyApi?.dispatchReplyWithBufferedBlockDispatcher
+    ) {
+      logger.warn("core.channel.reply real-time dispatcher not available, skipping dispatch");
       return;
     }
     
@@ -1468,26 +1466,31 @@ export async function handleDingtalkMessage(params: {
         (route as Record<string, unknown>)?.agentId as string | undefined
       );
 
-      const createDispatcherWithTyping = replyApi?.createReplyDispatcherWithTyping as
-        | ((opts: Record<string, unknown>) => Record<string, unknown>)
-        | undefined;
-      const createDispatcher = replyApi?.createReplyDispatcher as
-        | ((opts: Record<string, unknown>) => Record<string, unknown>)
-        | undefined;
-
       const dispatchReplyWithDispatcher = replyApi?.dispatchReplyWithDispatcher as
         | ((opts: Record<string, unknown>) => Promise<Record<string, unknown>>)
         | undefined;
+      const dispatchReplyWithBufferedBlockDispatcher = replyApi?.dispatchReplyWithBufferedBlockDispatcher as
+        | ((opts: Record<string, unknown>) => Promise<Record<string, unknown>>)
+        | undefined;
+      const streamingReplyOptions =
+        chatType === "direct"
+          ? {
+              disableBlockStreaming: false,
+            }
+          : undefined;
 
-      if (dispatchReplyWithDispatcher) {
+      const runRealtimeDispatch = async (
+        mode: "direct" | "buffered",
+        dispatchFn: (opts: Record<string, unknown>) => Promise<Record<string, unknown>>
+      ): Promise<void> => {
         logger.debug(
-          `[dispatch] direct=${JSON.stringify({
+          `[dispatch] ${mode}=${JSON.stringify({
             sessionKey: (route as Record<string, unknown>)?.sessionKey,
             ...resolvedTargetMeta,
           })}`
         );
         const deliveryState = { delivered: false, skippedNonSilent: 0 };
-        const result = await dispatchReplyWithDispatcher({
+        const result = await dispatchFn({
           ctx: finalCtx,
           cfg,
           dispatcherOptions: {
@@ -1510,6 +1513,7 @@ export async function handleDingtalkMessage(params: {
               logger.error(`${info.kind} reply failed: ${String(err)}`);
             },
           },
+          replyOptions: streamingReplyOptions,
         });
 
         if (!deliveryState.delivered && deliveryState.skippedNonSilent > 0) {
@@ -1527,70 +1531,19 @@ export async function handleDingtalkMessage(params: {
         logger.debug(
           `dispatch complete (queuedFinal=${typeof queuedFinal === "boolean" ? queuedFinal : "unknown"}, replies=${counts?.final ?? 0})`
         );
+      };
+
+      if (dispatchReplyWithDispatcher) {
+        await runRealtimeDispatch("direct", dispatchReplyWithDispatcher);
         return;
       }
 
-      const dispatcherResult = createDispatcherWithTyping
-        ? createDispatcherWithTyping({
-            deliver: async (payload: unknown, info?: { kind?: string }) => {
-              await deliver(payload as { text?: string; mediaUrl?: string; mediaUrls?: string[] }, info);
-            },
-            humanDelay,
-            onError: (err: unknown, info: { kind: string }) => {
-              logger.error(`${info.kind} reply failed: ${String(err)}`);
-            },
-          })
-        : {
-            dispatcher: createDispatcher?.({
-              deliver: async (payload: unknown, info?: { kind?: string }) => {
-                await deliver(payload as { text?: string; mediaUrl?: string; mediaUrls?: string[] }, info);
-              },
-              humanDelay,
-              onError: (err: unknown, info: { kind: string }) => {
-                logger.error(`${info.kind} reply failed: ${String(err)}`);
-              },
-            }),
-            replyOptions: {},
-            markDispatchIdle: () => undefined,
-          };
-
-      const dispatcher = (dispatcherResult as Record<string, unknown>)?.dispatcher as Record<string, unknown> | undefined;
-      if (!dispatcher) {
-        logger.debug("dispatcher not available, skipping dispatch");
+      if (dispatchReplyWithBufferedBlockDispatcher) {
+        await runRealtimeDispatch("buffered", dispatchReplyWithBufferedBlockDispatcher);
         return;
       }
 
-      logger.debug(
-        `[dispatch] legacy=${JSON.stringify({
-          sessionKey: (route as Record<string, unknown>)?.sessionKey,
-          ...resolvedTargetMeta,
-        })}`
-      );
-
-      const dispatchReplyFromConfig = replyApi?.dispatchReplyFromConfig as
-        | ((opts: Record<string, unknown>) => Promise<Record<string, unknown>>)
-        | undefined;
-
-      if (!dispatchReplyFromConfig) {
-        logger.debug("dispatchReplyFromConfig not available");
-        return;
-      }
-
-      const result = await dispatchReplyFromConfig({
-        ctx: finalCtx,
-        cfg,
-        dispatcher,
-        replyOptions: (dispatcherResult as Record<string, unknown>)?.replyOptions ?? {},
-      });
-
-      const markDispatchIdle = (dispatcherResult as Record<string, unknown>)?.markDispatchIdle as (() => void) | undefined;
-      markDispatchIdle?.();
-
-      const counts = (result as Record<string, unknown>)?.counts as Record<string, unknown> | undefined;
-      const queuedFinal = (result as Record<string, unknown>)?.queuedFinal as unknown;
-      logger.debug(
-        `dispatch complete (queuedFinal=${typeof queuedFinal === "boolean" ? queuedFinal : "unknown"}, replies=${counts?.final ?? 0})`
-      );
+      logger.warn("no real-time reply dispatcher available after capability check");
     } catch (err) {
       longTaskNotice.dispose();
       throw err;
