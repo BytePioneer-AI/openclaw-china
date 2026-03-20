@@ -16,10 +16,13 @@
   <strong>⭐ 如果这个项目对你有帮助，请给我们一个Star！⭐</strong><br>
   <em>您的支持是我们持续改进的动力</em>
 </p>
-
 <p align="center">
   <strong>🤖 推荐：<a href="https://github.com/BytePioneer-AI/clawmate">ClawMate</a></strong> — 为 OpenClaw 添加有温度的角色伴侣
 </p>
+<p align="center">
+    <a href="https://linux.do" alt="LINUX DO"><img src="https://shorturl.at/ggSqS" /></a>
+</p>
+
 <table align="center">
   <thead>
     <tr>
