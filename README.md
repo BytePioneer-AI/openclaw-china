@@ -5,7 +5,8 @@
 </p>
 
 <p align="center">
-  <img alt="downloads" src="https://raw.githubusercontent.com/BytePioneer-AI/openclaw-china-badges/main/.github/badges/npm-downloads-18m.svg" />
+  <img alt="npm 18m downloads" src="https://raw.githubusercontent.com/BytePioneer-AI/openclaw-china-badges/main/.github/badges/npm-downloads-18m.svg" />
+  <img alt="npmmirror total downloads" src="https://raw.githubusercontent.com/BytePioneer-AI/openclaw-china-badges/main/.github/badges/npmmirror-downloads-total.svg" />
   <a href="./package.json"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-1f6feb?logo=open-source-initiative&logoColor=white" /></a>
   <a href="https://linux.do"><img alt="LINUX DO" src="https://shorturl.at/ggSqS" /></a>
 </p>
