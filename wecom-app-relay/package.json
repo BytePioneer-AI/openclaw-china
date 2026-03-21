@@ -4,6 +4,11 @@
   "type": "module",
   "description": "WeCom App WebSocket relay server - 企业微信自建应用 WebSocket 中继服务",
   "license": "MIT",
+  "private": false,
+  "files": [
+    "dist",
+    "src"
+  ],
   "bin": {
     "wecom-app-relay": "./dist/index.js"
   },
