@@ -12,10 +12,10 @@ Moltbot China 是一个开源扩展集，为 Moltbot Agent 系统添加中国区
 每个渠道作为独立插件发布到 npm，用户可按需安装：
 
 ```bash
-moltbot plugins install @openclaw-china/feishu-china
-moltbot plugins install @openclaw-china/dingtalk
+moltbot plugins install @xuanyue202/feishu-china
+moltbot plugins install @xuanyue202/dingtalk
 # 或
-npm install @openclaw-china/feishu-china
+npm install @xuanyue202/feishu-china
 ```
 
 ---
@@ -68,7 +68,7 @@ openclaw-china/
 │
 └── extensions/
     │
-    ├── feishu/                            # @openclaw-china/feishu-china
+    ├── feishu/                            # @xuanyue202/feishu-china
     │   ├── moltbot.plugin.json
     │   ├── package.json
     │   ├── tsconfig.json
@@ -84,7 +84,7 @@ openclaw-china/
     │       ├── config.ts                  # 配置 schema
     │       └── types.ts
     │
-    ├── dingtalk/                          # @openclaw-china/dingtalk
+    ├── dingtalk/                          # @xuanyue202/dingtalk
     │   ├── moltbot.plugin.json
     │   ├── package.json
     │   ├── tsconfig.json
@@ -100,7 +100,7 @@ openclaw-china/
     │       ├── config.ts
     │       └── types.ts
     │
-    ├── wecom/                             # @openclaw-china/wecom
+    ├── wecom/                             # @xuanyue202/wecom
     │   ├── moltbot.plugin.json
     │   ├── package.json
     │   ├── tsconfig.json
@@ -120,7 +120,7 @@ openclaw-china/
     │       ├── config.ts
     │       └── types.ts
     │
-    └── qq/                                # @openclaw-china/qq
+    └── qq/                                # @xuanyue202/qq
         ├── moltbot.plugin.json
         ├── package.json
         ├── tsconfig.json
@@ -158,8 +158,8 @@ openclaw-china/
 
 ```typescript
 // extensions/feishu/src/bot.ts
-import { DmPolicyEngine, GroupPolicyEngine } from "@openclaw-china/shared";
-import { HistoryManager } from "@openclaw-china/shared";
+import { DmPolicyEngine, GroupPolicyEngine } from "@xuanyue202/shared";
+import { HistoryManager } from "@xuanyue202/shared";
 
 // 使用共享的策略引擎
 const dmPolicy = new DmPolicyEngine(config.dmPolicy, config.allowFrom);
@@ -283,7 +283,7 @@ channels:
 
 ```json
 {
-  "name": "@openclaw-china/feishu-china",
+  "name": "@xuanyue202/feishu-china",
   "version": "0.1.0",
   "type": "module",
   "description": "Moltbot Feishu/Lark channel plugin",
@@ -301,13 +301,13 @@ channels:
       "order": 70
     },
     "install": {
-      "npmSpec": "@openclaw-china/feishu-china",
+      "npmSpec": "@xuanyue202/feishu-china",
       "localPath": ".",
       "defaultChoice": "npm"
     }
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
     "@larksuiteoapi/node-sdk": "^1.30.0",
     "zod": "^3.23.0"
   },
@@ -318,7 +318,7 @@ channels:
   "peerDependencies": {
     "moltbot": ">=1.0.0"
   },
-  "bundledDependencies": ["@openclaw-china/shared"]
+  "bundledDependencies": ["@xuanyue202/shared"]
 }
 ```
 
@@ -337,7 +337,7 @@ channels:
         │                     │                     │
         ▼                     ▼                     ▼
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│ @openclaw-china│   │ @openclaw-china│   │ @openclaw-china│
+│ @xuanyue202│   │ @xuanyue202│   │ @xuanyue202│
 │   /feishu     │   │   /dingtalk   │   │   /wecom      │  ...
 └───────────────┘   └───────────────┘   └───────────────┘
         │                     │                     │
@@ -345,7 +345,7 @@ channels:
                               │ workspace:*
                               ▼
                     ┌───────────────┐
-                    │ @openclaw-china│
+                    │ @xuanyue202│
                     │   /shared     │
                     │  (bundled)    │
                     └───────────────┘
@@ -366,10 +366,10 @@ cd openclaw-china
 pnpm install
 
 # 构建共享包
-pnpm -F @openclaw-china/shared build
+pnpm -F @xuanyue202/shared build
 
 # 开发某个渠道
-pnpm -F @openclaw-china/feishu-china dev
+pnpm -F @xuanyue202/feishu-china dev
 ```
 
 ### 发布

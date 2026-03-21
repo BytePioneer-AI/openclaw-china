@@ -1,4 +1,4 @@
-// @openclaw-china/shared
+// @xuanyue202/shared
 // 共享工具模块
 
 export * from "./logger/index.js";

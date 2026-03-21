@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/feishu-china",
+  "name": "@xuanyue202/feishu-china",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "Moltbot Feishu/Lark channel plugin",
@@ -26,7 +26,7 @@
       "order": 70
     },
     "install": {
-      "npmSpec": "@openclaw-china/feishu-china",
+      "npmSpec": "@xuanyue202/feishu-china",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -47,7 +47,7 @@
       "order": 70
     },
     "install": {
-      "npmSpec": "@openclaw-china/feishu-china",
+      "npmSpec": "@xuanyue202/feishu-china",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -68,7 +68,7 @@
       "order": 70
     },
     "install": {
-      "npmSpec": "@openclaw-china/feishu-china",
+      "npmSpec": "@xuanyue202/feishu-china",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -92,7 +92,7 @@
     "release:major": "npm run build && npm version major && npm publish"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
     "@larksuiteoapi/node-sdk": "^1.46.0"
   },
   "devDependencies": {

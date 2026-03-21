@@ -23,7 +23,7 @@ import {
   extractMediaFromText,
   isImagePath,
   appendCronHiddenPrompt,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 import * as fs from "node:fs";
 
 /**

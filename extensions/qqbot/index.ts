@@ -1,11 +1,11 @@
 /**
- * @openclaw-china/qqbot
+ * @xuanyue202/qqbot
  * QQ Bot 渠道插件入口
  */
 
 import { qqbotPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setQQBotRuntime, getQQBotRuntime } from "./src/runtime.js";
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 export interface MoltbotPluginApi {
   registerChannel: (opts: { plugin: unknown }) => void;

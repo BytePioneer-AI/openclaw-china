@@ -3,7 +3,7 @@
  *
  * 提供统一的媒体文件下载和读取功能
  *
- * @module @openclaw-china/shared/media
+ * @module @xuanyue202/shared/media
  */
 
 import * as fs from "fs";

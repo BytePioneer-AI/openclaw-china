@@ -1,5 +1,5 @@
 /**
- * @openclaw-china/dingtalk
+ * @xuanyue202/dingtalk
  * 钉钉渠道插件入口
  *
  * 导出:
@@ -12,7 +12,7 @@
 
 import { dingtalkPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setDingtalkRuntime } from "./src/runtime.js";
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 /**
  * Moltbot 插件 API 接口

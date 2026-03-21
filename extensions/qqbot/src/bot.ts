@@ -21,7 +21,7 @@ import {
   pruneInboundMediaDir,
   stripTitleFromUrl,
   transcribeTencentFlash,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 import {
   DEFAULT_QQBOT_C2C_MARKDOWN_SAFE_CHUNK_BYTE_LIMIT,
   resolveQQBotASRCredentials,

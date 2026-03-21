@@ -27,7 +27,7 @@ const SUPPORTED_CHANNELS: readonly ChannelId[] = [
   "wechat-mp",
   "qqbot",
 ];
-const CHINA_INSTALL_HINT_SHOWN_KEY = Symbol.for("@openclaw-china/china-install-hint-shown");
+const CHINA_INSTALL_HINT_SHOWN_KEY = Symbol.for("@xuanyue202/china-install-hint-shown");
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

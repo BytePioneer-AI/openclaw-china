@@ -3,7 +3,7 @@
  */
 
 import * as path from "node:path";
-import { detectMediaType, HttpError, stripTitleFromUrl } from "@openclaw-china/shared";
+import { detectMediaType, HttpError, stripTitleFromUrl } from "@xuanyue202/shared";
 import {
   mergeQQBotAccountConfig,
   resolveQQBotCredentials,

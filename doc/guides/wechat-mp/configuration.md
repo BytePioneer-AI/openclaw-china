@@ -76,7 +76,7 @@
 ### 方式一：安装聚合包（推荐）
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 openclaw config set gateway.bind lan
 ```
@@ -84,7 +84,7 @@ openclaw config set gateway.bind lan
 ### 方式二：只安装 wechat-mp 插件
 
 ```bash
-openclaw plugins install @openclaw-china/wechat-mp
+openclaw plugins install @xuanyue202/wechat-mp
 openclaw china setup
 openclaw config set gateway.bind lan
 ```
@@ -445,10 +445,10 @@ https://your.domain.com/wechat-mp
 ## 十二、推荐验证命令
 
 ```bash
-pnpm -F @openclaw-china/wechat-mp build
-pnpm -F @openclaw-china/wechat-mp test
-pnpm -F @openclaw-china/channels build
-pnpm -F @openclaw-china/shared test
+pnpm -F @xuanyue202/wechat-mp build
+pnpm -F @xuanyue202/wechat-mp test
+pnpm -F @xuanyue202/channels build
+pnpm -F @xuanyue202/shared test
 ```
 
 当前 wechat-mp 已覆盖的测试重点包括：
@@ -497,7 +497,7 @@ pnpm -F @openclaw-china/shared test
 
 如果你只是想先跑通最小闭环，建议按下面的顺序：
 
-1. 安装 `@openclaw-china/channels`
+1. 安装 `@xuanyue202/channels`
 2. 执行 `openclaw china setup`
 3. 先用 `plain + passive`
 4. 跑通后再切到 `safe`

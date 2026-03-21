@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import type { Logger } from "@openclaw-china/shared";
+import type { Logger } from "@xuanyue202/shared";
 import { startLongTaskNoticeTimer } from "./bot-handler.js";
 
 describe("startLongTaskNoticeTimer", () => {

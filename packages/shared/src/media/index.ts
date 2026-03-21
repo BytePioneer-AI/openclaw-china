@@ -3,7 +3,7 @@
  *
  * 提供统一的媒体解析、路径处理和文件读取功能
  *
- * @module @openclaw-china/shared/media
+ * @module @xuanyue202/shared/media
  */
 
 // 媒体解析

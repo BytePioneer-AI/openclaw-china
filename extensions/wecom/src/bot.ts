@@ -12,7 +12,7 @@ import {
   normalizeLocalPath,
   type Logger,
   resolveExtension,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 
 import type { PluginRuntime } from "./runtime.js";
 import type { ResolvedWecomAccount, WecomInboundMessage, WecomDmPolicy } from "./types.js";

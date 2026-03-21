@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 import { wechatMpPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setWechatMpRuntime, getWechatMpRuntime } from "./src/runtime.js";

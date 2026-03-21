@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 import { wecomKfPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setWecomKfRuntime, getWecomKfRuntime, tryGetWecomKfRuntime } from "./src/runtime.js";

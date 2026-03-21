@@ -1,5 +1,5 @@
 /**
- * @openclaw-china/feishu-china
+ * @xuanyue202/feishu-china
  * 飞书渠道插件入口
  *
  * 导出:
@@ -10,7 +10,7 @@
 
 import { feishuPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setFeishuRuntime } from "./src/runtime.js";
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 /**
  * Moltbot 插件 API 接口

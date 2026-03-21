@@ -90,7 +90,7 @@ npm install -g openclaw@latest
 ### 2. 安装钉钉插件
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 ```
 

@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/channels",
+  "name": "@xuanyue202/channels",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "Unified package for all Moltbot China channel plugins",
@@ -23,7 +23,7 @@
       "./dist/index.js"
     ],
     "install": {
-      "npmSpec": "@openclaw-china/channels",
+      "npmSpec": "@xuanyue202/channels",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -33,7 +33,7 @@
       "./dist/index.js"
     ],
     "install": {
-      "npmSpec": "@openclaw-china/channels",
+      "npmSpec": "@xuanyue202/channels",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -43,7 +43,7 @@
       "./dist/index.js"
     ],
     "install": {
-      "npmSpec": "@openclaw-china/channels",
+      "npmSpec": "@xuanyue202/channels",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -55,14 +55,14 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.0",
-    "@openclaw-china/dingtalk": "2026.3.9-1",
-    "@openclaw-china/feishu-china": "2026.3.9-1",
-    "@openclaw-china/qqbot": "2026.3.9-1",
-    "@openclaw-china/wechat-mp": "workspace:*",
-    "@openclaw-china/shared": "workspace:*",
-    "@openclaw-china/wecom": "workspace:*",
-    "@openclaw-china/wecom-app": "workspace:*",
-    "@openclaw-china/wecom-kf": "workspace:*"
+    "@xuanyue202/dingtalk": "2026.3.9-1",
+    "@xuanyue202/feishu-china": "2026.3.9-1",
+    "@xuanyue202/qqbot": "2026.3.9-1",
+    "@xuanyue202/wechat-mp": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
+    "@xuanyue202/wecom": "workspace:*",
+    "@xuanyue202/wecom-app": "workspace:*",
+    "@xuanyue202/wecom-kf": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/dingtalk",
+  "name": "@xuanyue202/dingtalk",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "Moltbot DingTalk channel plugin",
@@ -26,7 +26,7 @@
       "order": 71
     },
     "install": {
-      "npmSpec": "@openclaw-china/dingtalk",
+      "npmSpec": "@xuanyue202/dingtalk",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -47,7 +47,7 @@
       "order": 71
     },
     "install": {
-      "npmSpec": "@openclaw-china/dingtalk",
+      "npmSpec": "@xuanyue202/dingtalk",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -68,7 +68,7 @@
       "order": 71
     },
     "install": {
-      "npmSpec": "@openclaw-china/dingtalk",
+      "npmSpec": "@xuanyue202/dingtalk",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -92,7 +92,7 @@
     "release:major": "npm run build && npm version major && npm publish"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
     "dingtalk-stream": "^2.1.4"
   },
   "devDependencies": {

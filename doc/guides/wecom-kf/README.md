@@ -42,7 +42,7 @@
 推荐通过 OpenClaw China 聚合包安装，这样后续如果还要接入其他中国区渠道，不需要重复安装：
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 openclaw config set gateway.bind lan
 ```
@@ -50,7 +50,7 @@ openclaw config set gateway.bind lan
 如果你的环境已经可以直接安装单独渠道包，也可以只装 `wecom-kf`：
 
 ```bash
-openclaw plugins install @openclaw-china/wecom-kf
+openclaw plugins install @xuanyue202/wecom-kf
 openclaw china setup
 openclaw config set gateway.bind lan
 ```

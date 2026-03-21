@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/qqbot",
+  "name": "@xuanyue202/qqbot",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "Moltbot QQ Bot channel plugin",
@@ -25,7 +25,7 @@
       "order": 72
     },
     "install": {
-      "npmSpec": "@openclaw-china/qqbot",
+      "npmSpec": "@xuanyue202/qqbot",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -46,7 +46,7 @@
       "order": 72
     },
     "install": {
-      "npmSpec": "@openclaw-china/qqbot",
+      "npmSpec": "@xuanyue202/qqbot",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -67,7 +67,7 @@
       "order": 72
     },
     "install": {
-      "npmSpec": "@openclaw-china/qqbot",
+      "npmSpec": "@xuanyue202/qqbot",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -88,7 +88,7 @@
     "release": "npm run build && npm publish"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
     "ffmpeg-static": "^5.3.0",
     "silk-wasm": "^3.7.1",
     "ws": "^8.18.0"

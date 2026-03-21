@@ -1,5 +1,5 @@
 /**
- * @openclaw-china/channels
+ * @xuanyue202/channels
  * 统一渠道包入口
  *
  * 导出所有渠道插件，提供统一注册函数
@@ -14,23 +14,23 @@ import {
   sendMessageDingtalk,
   setDingtalkRuntime,
   getDingtalkRuntime,
-} from "@openclaw-china/dingtalk";
-import dingtalkEntry from "@openclaw-china/dingtalk";
+} from "@xuanyue202/dingtalk";
+import dingtalkEntry from "@xuanyue202/dingtalk";
 import {
   feishuPlugin,
   DEFAULT_ACCOUNT_ID as FEISHU_DEFAULT_ACCOUNT_ID,
   sendMessageFeishu,
   setFeishuRuntime,
   getFeishuRuntime,
-} from "@openclaw-china/feishu-china";
-import feishuEntry from "@openclaw-china/feishu-china";
+} from "@xuanyue202/feishu-china";
+import feishuEntry from "@xuanyue202/feishu-china";
 import {
   wecomPlugin,
   DEFAULT_ACCOUNT_ID as WECOM_DEFAULT_ACCOUNT_ID,
   setWecomRuntime,
   getWecomRuntime,
-} from "@openclaw-china/wecom";
-import wecomEntry from "@openclaw-china/wecom";
+} from "@xuanyue202/wecom";
+import wecomEntry from "@xuanyue202/wecom";
 import {
   wecomAppPlugin,
   DEFAULT_ACCOUNT_ID as WECOM_APP_DEFAULT_ACCOUNT_ID,
@@ -44,31 +44,31 @@ import {
   clearAllAccessTokenCache,
   downloadAndSendImage,
   sendWecomAppImageMessage,
-} from "@openclaw-china/wecom-app";
-import wecomAppEntry from "@openclaw-china/wecom-app";
+} from "@xuanyue202/wecom-app";
+import wecomAppEntry from "@xuanyue202/wecom-app";
 import {
   wecomKfPlugin,
   DEFAULT_ACCOUNT_ID as WECOM_KF_DEFAULT_ACCOUNT_ID,
   setWecomKfRuntime,
   getWecomKfRuntime,
-} from "@openclaw-china/wecom-kf";
-import wecomKfEntry from "@openclaw-china/wecom-kf";
+} from "@xuanyue202/wecom-kf";
+import wecomKfEntry from "@xuanyue202/wecom-kf";
 import {
   qqbotPlugin,
   DEFAULT_ACCOUNT_ID as QQBOT_DEFAULT_ACCOUNT_ID,
   setQQBotRuntime,
   getQQBotRuntime,
-} from "@openclaw-china/qqbot";
-import qqbotEntry from "@openclaw-china/qqbot";
+} from "@xuanyue202/qqbot";
+import qqbotEntry from "@xuanyue202/qqbot";
 import {
   wechatMpPlugin,
   DEFAULT_ACCOUNT_ID as WECHAT_MP_DEFAULT_ACCOUNT_ID,
   setWechatMpRuntime,
   getWechatMpRuntime,
   sendWechatMpActiveText,
-} from "@openclaw-china/wechat-mp";
-import wechatMpEntry from "@openclaw-china/wechat-mp";
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+} from "@xuanyue202/wechat-mp";
+import wechatMpEntry from "@xuanyue202/wechat-mp";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 
 export {
   dingtalkPlugin,
@@ -116,13 +116,13 @@ export type {
   DingtalkConfig,
   ResolvedDingtalkAccount,
   DingtalkSendResult,
-} from "@openclaw-china/dingtalk";
+} from "@xuanyue202/dingtalk";
 export type {
   FeishuConfig,
   ResolvedFeishuAccount,
   FeishuSendResult,
-} from "@openclaw-china/feishu-china";
-export type { WecomConfig, ResolvedWecomAccount, WecomInboundMessage } from "@openclaw-china/wecom";
+} from "@xuanyue202/feishu-china";
+export type { WecomConfig, ResolvedWecomAccount, WecomInboundMessage } from "@xuanyue202/wecom";
 export type {
   WecomAppConfig,
   ResolvedWecomAppAccount,
@@ -130,7 +130,7 @@ export type {
   WecomAppDmPolicy,
   WecomAppSendTarget,
   AccessTokenCacheEntry,
-} from "@openclaw-china/wecom-app";
+} from "@xuanyue202/wecom-app";
 export type {
   WecomKfConfig,
   WecomKfAccountConfig,
@@ -138,8 +138,8 @@ export type {
   WecomKfDmPolicy,
   SyncMsgItem as WecomKfSyncMsgItem,
   SyncMsgResponse as WecomKfSyncMsgResponse,
-} from "@openclaw-china/wecom-kf";
-export type { QQBotConfig, ResolvedQQBotAccount, QQBotSendResult } from "@openclaw-china/qqbot";
+} from "@xuanyue202/wecom-kf";
+export type { QQBotConfig, ResolvedQQBotAccount, QQBotSendResult } from "@xuanyue202/qqbot";
 export type {
   WechatMpConfig,
   WechatMpAccountConfig,
@@ -148,10 +148,10 @@ export type {
   WechatMpMessageMode,
   WechatMpReplyMode,
   WechatMpActiveDeliveryMode,
-} from "@openclaw-china/wechat-mp";
+} from "@xuanyue202/wechat-mp";
 
 // TODO: 后续添加其他渠道
-// export { qqPlugin } from "@openclaw-china/qq";
+// export { qqPlugin } from "@xuanyue202/qq";
 
 /**
  * 渠道配置接口

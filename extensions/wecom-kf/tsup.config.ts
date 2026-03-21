@@ -11,5 +11,5 @@ export default defineConfig({
   treeshake: true,
   outDir: "dist",
   tsconfig: "tsconfig.json",
-  noExternal: ["@openclaw-china/shared"],
+  noExternal: ["@xuanyue202/shared"],
 });

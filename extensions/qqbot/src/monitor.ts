@@ -3,7 +3,7 @@
  * 支持多账户并发连接
  */
 import WebSocket from "ws";
-import { HttpError } from "@openclaw-china/shared";
+import { HttpError } from "@xuanyue202/shared";
 import { createLogger, type Logger } from "./logger.js";
 import { handleQQBotDispatch } from "./bot.js";
 import {

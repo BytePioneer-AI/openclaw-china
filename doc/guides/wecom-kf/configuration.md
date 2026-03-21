@@ -118,14 +118,14 @@ openclaw onboard --install-daemon
 **方式一：安装聚合包（推荐）**
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 openclaw config set gateway.bind lan
 ```
 仅安装微信客服渠道
 
 ```bash
-openclaw plugins install @openclaw-china/wecom-kf
+openclaw plugins install @xuanyue202/wecom-kf
 openclaw config set gateway.bind lan
 ```
 

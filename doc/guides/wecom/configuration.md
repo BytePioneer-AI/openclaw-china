@@ -63,13 +63,13 @@ openclaw onboard --install-daemon
 **方式一：安装聚合包（推荐）**
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 ```
 仅安装企业微信渠道
 
 ```bash
-openclaw plugins install @openclaw-china/wecom
+openclaw plugins install @xuanyue202/wecom
 ```
 
 **方式二：从源码安装，全平台通用**

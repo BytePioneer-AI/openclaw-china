@@ -4,7 +4,7 @@
 
 import path from "node:path";
 import { access } from "node:fs/promises";
-import { resolveFileCategory } from "@openclaw-china/shared";
+import { resolveFileCategory } from "@xuanyue202/shared";
 
 import type { ResolvedWecomAccount, WecomConfig } from "./types.js";
 import {

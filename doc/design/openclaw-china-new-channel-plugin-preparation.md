@@ -10,7 +10,7 @@
 目标不是重复介绍 QQ Bot 业务细节，而是回答这两个更重要的问题：
 
 1. 一个渠道插件自身要如何接入 OpenClaw/Moltbot 风格的宿主。
-2. 一个已经完成的渠道插件，要如何再接入 `@openclaw-china/channels` 这个全渠道聚合包。
+2. 一个已经完成的渠道插件，要如何再接入 `@xuanyue202/channels` 这个全渠道聚合包。
 
 结论先说：
 
@@ -42,10 +42,10 @@
 
 第二类是 `extensions/qqbot/package.json`：
 
-- 包名是 `@openclaw-china/qqbot`
+- 包名是 `@xuanyue202/qqbot`
 - `openclaw.extensions` / `moltbot.extensions` / `clawdbot.extensions` 都指向 `./dist/index.js`
 - 三套元数据里都声明了 `channel.id = "qqbot"`
-- 三套元数据里都声明了安装方式 `install.npmSpec = "@openclaw-china/qqbot"`
+- 三套元数据里都声明了安装方式 `install.npmSpec = "@xuanyue202/qqbot"`
 
 这说明当前仓库采用的是“三宿主兼容”做法：同一个渠道包同时服务 `openclaw`、`moltbot`、`clawdbot`。
 
@@ -154,7 +154,7 @@ channels.qqbot
 `packages/channels/package.json` 里显式依赖：
 
 ```json
-"@openclaw-china/qqbot": "2026.3.9-1"
+"@xuanyue202/qqbot": "2026.3.9-1"
 ```
 
 这一步的含义很直接：
@@ -173,7 +173,7 @@ channels.qqbot
 
 这里的意义是：
 
-- 宿主把 `@openclaw-china/channels` 当作一个插件包加载时
+- 宿主把 `@xuanyue202/channels` 当作一个插件包加载时
 - 它会知道这个包可以提供哪些 channel id
 
 所以以后新增一个渠道时，聚合包清单也必须补上新 channel id。
@@ -188,8 +188,8 @@ import {
   DEFAULT_ACCOUNT_ID as QQBOT_DEFAULT_ACCOUNT_ID,
   setQQBotRuntime,
   getQQBotRuntime,
-} from "@openclaw-china/qqbot";
-import qqbotEntry from "@openclaw-china/qqbot";
+} from "@xuanyue202/qqbot";
+import qqbotEntry from "@xuanyue202/qqbot";
 ```
 
 两者分工不同：
@@ -213,7 +213,7 @@ import qqbotEntry from "@openclaw-china/qqbot";
 
 这样做的结果是：
 
-- 用户安装 `@openclaw-china/channels` 后
+- 用户安装 `@xuanyue202/channels` 后
 - 仍然可以通过聚合包访问具体子插件的类型和工具函数
 
 所以新增一个插件时，通常也应把它的公开类型与核心工具一起透传出来。
@@ -257,7 +257,7 @@ qqbot: {
 4. 如果 `!channelConfig?.enabled` 就跳过
 5. 如果启用，就执行该渠道对应的 `plugin.register(api)`
 
-因此当用户安装的是 `@openclaw-china/channels` 时，真实行为是：
+因此当用户安装的是 `@xuanyue202/channels` 时，真实行为是：
 
 ```text
 加载 channels 聚合插件
@@ -384,7 +384,7 @@ qqbot: {
 
 ## 8. 最终结论
 
-`qqbot` 接入 `@openclaw-china/channels` 的方式可以用一句话概括：
+`qqbot` 接入 `@xuanyue202/channels` 的方式可以用一句话概括：
 
 先把 `qqbot` 做成一个可独立注册的标准渠道插件，再由聚合包把它作为依赖导入，并在 `channels.qqbot.enabled` 为 `true` 时转调 `qqbotEntry.register(api)`。
 

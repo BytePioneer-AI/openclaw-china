@@ -12,7 +12,7 @@ import {
   createLogger,
   transcribeTencentFlash,
   type Logger,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 import { readFile } from "node:fs/promises";
 
 import type { PluginRuntime } from "./runtime.js";

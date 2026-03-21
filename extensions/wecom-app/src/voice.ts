@@ -1,4 +1,4 @@
-import { AUDIO_EXTENSIONS, resolveExtension } from "@openclaw-china/shared";
+import { AUDIO_EXTENSIONS, resolveExtension } from "@xuanyue202/shared";
 
 const EXTRA_AUDIO_EXTENSIONS = [
   "speex",

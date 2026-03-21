@@ -9,7 +9,7 @@ import {
   type Logger,
   type LogLevel,
   type LoggerOptions,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 
 const PALE_GREEN = "\x1b[38;5;120m";
 const RESET = "\x1b[0m";

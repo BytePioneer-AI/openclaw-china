@@ -42,7 +42,7 @@ type ConfigRoot = {
   channels?: Record<string, Record<string, unknown>>;
 };
 
-const CLI_STATE_KEY = Symbol.for("@openclaw-china/china-cli-state");
+const CLI_STATE_KEY = Symbol.for("@xuanyue202/china-cli-state");
 
 function setupTTYMocks(): () => void {
   const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");

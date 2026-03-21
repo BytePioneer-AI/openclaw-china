@@ -13,7 +13,7 @@ openclaw-china/
 ├── tsconfig.base.json
 │
 ├── packages/
-│   ├── channels/                    # @openclaw-china/channels 统一包
+│   ├── channels/                    # @xuanyue202/channels 统一包
 │   │   ├── package.json
 │   │   ├── moltbot.plugin.json
 │   │   ├── clawdbot.plugin.json
@@ -44,11 +44,11 @@ openclaw-china/
 │               └── common.ts
 │
 ├── extensions/
-│   ├── dingtalk/                    # @openclaw-china/dingtalk
-│   ├── feishu/                      # @openclaw-china/feishu-china
-│   ├── wecom/                       # @openclaw-china/wecom
-│   ├── wecom-app/                   # @openclaw-china/wecom-app
-│   └── qqbot/                       # @openclaw-china/qqbot
+│   ├── dingtalk/                    # @xuanyue202/dingtalk
+│   ├── feishu/                      # @xuanyue202/feishu-china
+│   ├── wecom/                       # @xuanyue202/wecom
+│   ├── wecom-app/                   # @xuanyue202/wecom-app
+│   └── qqbot/                       # @xuanyue202/qqbot
 │
 └── doc/
     ├── architecture.md              # 架构设计文档

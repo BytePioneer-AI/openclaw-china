@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/wechat-mp",
+  "name": "@xuanyue202/wechat-mp",
   "version": "0.1.0",
   "type": "module",
   "description": "OpenClaw WeChat Official Account (微信公众号) channel plugin",
@@ -23,7 +23,7 @@
     "test": "vitest --run"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*"
+    "@xuanyue202/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -48,7 +48,7 @@
       "order": 81
     },
     "install": {
-      "npmSpec": "@openclaw-china/wechat-mp",
+      "npmSpec": "@xuanyue202/wechat-mp",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -71,7 +71,7 @@
       "order": 81
     },
     "install": {
-      "npmSpec": "@openclaw-china/wechat-mp",
+      "npmSpec": "@xuanyue202/wechat-mp",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -94,7 +94,7 @@
       "order": 81
     },
     "install": {
-      "npmSpec": "@openclaw-china/wechat-mp",
+      "npmSpec": "@xuanyue202/wechat-mp",
       "localPath": ".",
       "defaultChoice": "npm"
     }

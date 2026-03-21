@@ -1,4 +1,4 @@
-# @openclaw-china/wechat-mp
+# @xuanyue202/wechat-mp
 
 `wechat-mp` 是一个独立的微信公众号（订阅号 / 服务号）渠道插件，用于把公众号消息接入 OpenClaw。
 
@@ -64,8 +64,8 @@
 8. 推荐先用：
 
 ```bash
-pnpm -F @openclaw-china/wechat-mp build
-pnpm -F @openclaw-china/wechat-mp test
+pnpm -F @xuanyue202/wechat-mp build
+pnpm -F @xuanyue202/wechat-mp test
 ```
 
 ## 文档入口

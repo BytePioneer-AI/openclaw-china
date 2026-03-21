@@ -6,7 +6,7 @@ import { sendFileFeishu, sendImageFeishu, sendMarkdownCardFeishu, sendMessageFei
 import { getFeishuRuntime } from "./runtime.js";
 import type { FeishuConfig } from "./types.js";
 import { FeishuConfigSchema } from "./config.js";
-import { extractFilesFromText, extractImagesFromText, isHttpUrl, isImagePath, normalizeLocalPath } from "@openclaw-china/shared";
+import { extractFilesFromText, extractImagesFromText, isHttpUrl, isImagePath, normalizeLocalPath } from "@xuanyue202/shared";
 import * as fs from "node:fs";
 
 export interface OutboundConfig {

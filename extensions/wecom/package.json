@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/wecom",
+  "name": "@xuanyue202/wecom",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "Moltbot WeCom smart bot channel plugin",
@@ -29,7 +29,7 @@
       "order": 85
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom",
+      "npmSpec": "@xuanyue202/wecom",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -52,7 +52,7 @@
       "order": 85
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom",
+      "npmSpec": "@xuanyue202/wecom",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -75,7 +75,7 @@
       "order": 85
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom",
+      "npmSpec": "@xuanyue202/wecom",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -99,7 +99,7 @@
     "release:major": "npm run build && npm version major && npm publish"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*",
+    "@xuanyue202/shared": "workspace:*",
     "@wecom/aibot-node-sdk": "^1.0.2",
     "ws": "^8.18.0"
   },

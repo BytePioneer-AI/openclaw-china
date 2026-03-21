@@ -1,4 +1,4 @@
-import { HttpError, httpGet, httpPost, type HttpRequestOptions } from "@openclaw-china/shared";
+import { HttpError, httpGet, httpPost, type HttpRequestOptions } from "@xuanyue202/shared";
 
 const API_BASE = "https://api.sgroup.qq.com";
 const TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken";

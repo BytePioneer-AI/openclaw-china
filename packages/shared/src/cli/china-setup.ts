@@ -99,7 +99,7 @@ const CHANNEL_GUIDE_LINKS: Record<ChannelId, string> = {
   "wechat-mp": `${GUIDES_BASE}/wechat-mp/configuration.md`,
   qqbot: `${GUIDES_BASE}/qqbot/configuration.md`,
 };
-const CHINA_CLI_STATE_KEY = Symbol.for("@openclaw-china/china-cli-state");
+const CHINA_CLI_STATE_KEY = Symbol.for("@xuanyue202/china-cli-state");
 
 type ChinaCliState = {
   channels: Set<ChannelId>;

@@ -16,7 +16,7 @@ import {
   getExtension,
   IMAGE_EXTENSIONS,
   extractImagesFromText,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 
 export interface SendMessageParams {
   cfg: FeishuConfig;

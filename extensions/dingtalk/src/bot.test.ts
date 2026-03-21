@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { parseDingtalkMessage, buildInboundContext } from "./bot.js";
-import { checkDmPolicy, checkGroupPolicy } from "@openclaw-china/shared";
+import { checkDmPolicy, checkGroupPolicy } from "@xuanyue202/shared";
 import type { DingtalkRawMessage, DingtalkMessageContext } from "./types.js";
 
 describe("Feature: dingtalk-integration, Property 2: 消息解析正确性", () => {

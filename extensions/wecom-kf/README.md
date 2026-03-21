@@ -1,4 +1,4 @@
-# @openclaw-china/wecom-kf
+# @xuanyue202/wecom-kf
 
 `wecom-kf` 是一个独立的微信客服渠道插件，用于把外部微信用户的客服会话接入 OpenClaw/Moltbot。
 

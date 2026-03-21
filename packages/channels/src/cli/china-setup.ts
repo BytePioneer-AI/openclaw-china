@@ -1,2 +1,2 @@
-export { registerChinaSetupCli } from "@openclaw-china/shared";
-export type { ChannelId, RegisterChinaSetupCliOptions } from "@openclaw-china/shared";
+export { registerChinaSetupCli } from "@xuanyue202/shared";
+export type { ChannelId, RegisterChinaSetupCliOptions } from "@xuanyue202/shared";

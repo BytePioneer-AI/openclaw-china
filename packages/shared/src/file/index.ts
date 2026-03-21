@@ -1,6 +1,6 @@
 /**
  * File utilities module
- * @module @openclaw-china/shared/file
+ * @module @xuanyue202/shared/file
  */
 
 export {

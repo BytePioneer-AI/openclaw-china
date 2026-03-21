@@ -1,6 +1,6 @@
 # ASR 接入说明（供各插件复用）
 
-本文说明如何在任意渠道插件中复用 `@openclaw-china/shared` 的语音转文本能力。
+本文说明如何在任意渠道插件中复用 `@xuanyue202/shared` 的语音转文本能力。
 
 > 当前 QQ 渠道的腾讯云 ASR 仅支持国内网络下启用。
 
@@ -32,7 +32,7 @@ import {
   ASRResponseParseError,
   ASRServiceError,
   ASREmptyResultError,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 ```
 
 ## 插件接入步骤
@@ -50,7 +50,7 @@ asr: {
 2. 在入站消息里识别语音附件，并下载到 `Buffer`
 - 推荐复用 `shared/media` 的下载能力：
 ```ts
-import { fetchMediaFromUrl } from "@openclaw-china/shared";
+import { fetchMediaFromUrl } from "@xuanyue202/shared";
 ```
 
 3. 调用转写

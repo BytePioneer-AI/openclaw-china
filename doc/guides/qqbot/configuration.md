@@ -72,7 +72,7 @@ npm install -g openclaw@latest
 ### 2. 安装 OpenClaw China 全渠道插件（方式一：npm）
 
 ```bash
-openclaw plugins install @openclaw-china/channels
+openclaw plugins install @xuanyue202/channels
 openclaw china setup
 ```
 
@@ -412,7 +412,7 @@ openclaw daemon start
 ### 2. 查询已知目标
 
 ```ts
-import { listKnownQQBotTargets } from "@openclaw-china/qqbot";
+import { listKnownQQBotTargets } from "@xuanyue202/qqbot";
 
 const targets = listKnownQQBotTargets({ accountId: "default" });
 console.log(targets);
@@ -435,7 +435,7 @@ interface KnownQQBotTarget {
 ### 3. 主动发送消息
 
 ```ts
-import { sendProactiveQQBotMessage } from "@openclaw-china/qqbot";
+import { sendProactiveQQBotMessage } from "@xuanyue202/qqbot";
 
 const cfg = {
   channels: {

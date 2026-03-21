@@ -11,6 +11,6 @@ export default defineConfig({
   treeshake: true,
   outDir: "dist",
   tsconfig: "tsconfig.json",
-  noExternal: ["@openclaw-china/shared", "zod"],
+  noExternal: ["@xuanyue202/shared", "zod"],
   external: ["dingtalk-stream"],
 });

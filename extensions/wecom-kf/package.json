@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw-china/wecom-kf",
+  "name": "@xuanyue202/wecom-kf",
   "version": "2026.3.9-1",
   "type": "module",
   "description": "OpenClaw WeCom Customer Service (微信客服) channel plugin",
@@ -27,7 +27,7 @@
       "order": 83
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom-kf",
+      "npmSpec": "@xuanyue202/wecom-kf",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -50,7 +50,7 @@
       "order": 83
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom-kf",
+      "npmSpec": "@xuanyue202/wecom-kf",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -73,7 +73,7 @@
       "order": 83
     },
     "install": {
-      "npmSpec": "@openclaw-china/wecom-kf",
+      "npmSpec": "@xuanyue202/wecom-kf",
       "localPath": ".",
       "defaultChoice": "npm"
     }
@@ -93,7 +93,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@openclaw-china/shared": "workspace:*"
+    "@xuanyue202/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

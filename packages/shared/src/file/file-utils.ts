@@ -1,6 +1,6 @@
 /**
  * File utilities for categorizing and resolving file extensions
- * @module @openclaw-china/shared/file
+ * @module @xuanyue202/shared/file
  */
 
 /**

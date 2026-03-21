@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
   sendGroupMediaMessage: vi.fn(),
 }));
 
-vi.mock("@openclaw-china/shared", async () => {
-  const actual = await vi.importActual<typeof import("@openclaw-china/shared")>(
-    "@openclaw-china/shared"
+vi.mock("@xuanyue202/shared", async () => {
+  const actual = await vi.importActual<typeof import("@xuanyue202/shared")>(
+    "@xuanyue202/shared"
   );
   return {
     ...actual,
@@ -33,7 +33,7 @@ vi.mock("./client.js", () => ({
   sendGroupMediaMessage: mocks.sendGroupMediaMessage,
 }));
 
-import { HttpError } from "@openclaw-china/shared";
+import { HttpError } from "@xuanyue202/shared";
 import { sendFileQQBot } from "./send.js";
 
 describe("sendFileQQBot", () => {

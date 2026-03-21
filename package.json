@@ -11,9 +11,9 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
-    "build:shared": "pnpm -F @openclaw-china/shared build",
-    "build:dingtalk": "pnpm -F @openclaw-china/dingtalk build",
-    "build:channels": "pnpm -F @openclaw-china/channels build",
+    "build:shared": "pnpm -F @xuanyue202/shared build",
+    "build:dingtalk": "pnpm -F @xuanyue202/dingtalk build",
+    "build:channels": "pnpm -F @xuanyue202/channels build",
     "release:all": "node scripts/release-all.mjs",
     "release:channel": "node scripts/release-all.mjs",
     "clean": "pnpm -r clean",
@@ -45,7 +45,7 @@
   },
   "packageManager": "pnpm@9.0.0",
   "dependencies": {
-    "@openclaw-china/channels": "workspace:*",
+    "@xuanyue202/channels": "workspace:*",
     "dingtalk-stream": "^2.1.4"
   }
 }

@@ -44,7 +44,7 @@ import {
   splitCronHiddenPrompt,
   finalizeInboundMediaFile,
   pruneInboundMediaDir,
-} from "@openclaw-china/shared";
+} from "@xuanyue202/shared";
 
 export const LONG_TASK_NOTICE_TEXT = "任务处理时间较长，请稍等，我还在继续处理。";
 export const DEFAULT_LONG_TASK_NOTICE_DELAY_MS = 30000;

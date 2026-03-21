@@ -1,5 +1,5 @@
 /**
- * @openclaw-china/wecom-app
+ * @xuanyue202/wecom-app
  * 企业微信自建应用渠道插件入口
  *
  * 导出:
@@ -15,7 +15,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { wecomAppPlugin, DEFAULT_ACCOUNT_ID } from "./src/channel.js";
 import { setWecomAppRuntime, getWecomAppRuntime } from "./src/runtime.js";
 import { handleWecomAppWebhookRequest } from "./src/monitor.js";
-import { registerChinaSetupCli, showChinaInstallHint } from "@openclaw-china/shared";
+import { registerChinaSetupCli, showChinaInstallHint } from "@xuanyue202/shared";
 import {
   sendWecomAppMessage,
   sendWecomAppMarkdownMessage,
