@@ -31,16 +31,18 @@
 > - `GET` / `POST` 回调接入
 > - `plain / safe / compat` 三种消息模式基础支持
 > - `access_token` 获取、缓存、刷新
-> - 文本消息入站
+> - **全部入站消息类型**：文本、图片、语音、视频、短视频、位置、链接、事件
+> - **语音转文字 (ASR)**：集成腾讯云语音识别
 > - 基础事件（`subscribe / unsubscribe / scan / click / view`）
 > - OpenClaw routing / session / reply 主链路接入
 > - 被动回复（passive reply）主路径
-> - 主动发送（active outbound）基础 skeleton
+> - **主动发送**：文本、图片、语音、视频、模板消息
+> - **重试机制**：指数退避重试，处理限流和网络波动
+> - **时间窗口检查**：48小时交互窗口检测
 >
 > 暂未完整承诺：
 >
-> - 全量媒体消息收发
-> - OAuth / JS-SDK / 菜单 / 二维码 / 模板消息全量能力
+> - OAuth / JS-SDK / 菜单 / 二维码全量业务能力
 > - 完整多账号交互式 setup
 
 ---
@@ -145,7 +147,21 @@ openclaw config set gateway.bind lan
   "token": "your-callback-token",
   "encodingAESKey": "your-43-char-encoding-aes-key",
   "messageMode": "safe",
-  "replyMode": "active"
+  "replyMode": "active",
+  "retryConfig": {
+    "maxRetries": 3,
+    "initialDelay": 1000,
+    "maxDelay": 10000,
+    "backoffMultiplier": 2
+  },
+  "asr": {
+    "enabled": true,
+    "appId": "腾讯云 AppId",
+    "secretId": "腾讯云 SecretId",
+    "secretKey": "腾讯云 SecretKey",
+    "engineType": "16k_zh",
+    "timeoutMs": 30000
+  }
 }
 ```
 
@@ -158,6 +174,8 @@ openclaw config set gateway.bind lan
 - `webhookPath`：你自己决定，例如 `/wechat-mp`
 - `activeDeliveryMode`：仅 `replyMode=active` 时生效，`split` 表示逐条发送日志/chunk，`merged` 表示最终合并成一条主动消息
 - `renderMarkdown`：是否将 Markdown 转换为公众号友好的纯文本格式；默认 `true`，设为 `false` 可禁用转换
+- `retryConfig`：主动发送重试配置，处理网络波动和限流
+- `asr`：语音转文字配置，使用腾讯云 ASR 服务
 
 ## 五、配置步骤
 
@@ -339,6 +357,8 @@ openclaw config set channels.wechat-mp.welcomeText "你好，欢迎关注。"
 
 ## 八、配置字段说明
 
+### 基础配置
+
 | 字段                   | 是否必需 | 默认值        | 说明                                                        |
 | ---------------------- | -------- | ------------- | ----------------------------------------------------------- |
 | `enabled`            | 建议     | `false`       | 启用渠道                                                    |
@@ -356,6 +376,32 @@ openclaw config set channels.wechat-mp.welcomeText "你好，欢迎关注。"
 | `allowFrom`          | 否       | —             | allowlist 模式下允许的发送者列表                            |
 | `defaultAccount`     | 否       | `default`     | 多账号默认账号                                              |
 | `accounts`           | 否       | —             | 多账号 schema 预留                                          |
+
+### 重试配置 (`retryConfig`)
+
+| 字段 | 类型 | 默认值 | 说明 |
+|-----|------|-------|------|
+| `maxRetries` | number | 3 | 最大重试次数 |
+| `initialDelay` | number | 1000 | 初始延迟（毫秒） |
+| `maxDelay` | number | 10000 | 最大延迟（毫秒） |
+| `backoffMultiplier` | number | 2 | 退避乘数 |
+
+### ASR 配置 (`asr`)
+
+语音转文字配置，使用腾讯云 Flash ASR 服务：
+
+| 字段 | 类型 | 必填 | 说明 |
+|-----|------|-----|------|
+| `enabled` | boolean | 否 | 是否启用 ASR |
+| `appId` | string | 是 | 腾讯云 AppId |
+| `secretId` | string | 是 | 腾讯云 SecretId |
+| `secretKey` | string | 是 | 腾讯云 SecretKey |
+| `engineType` | string | 否 | 引擎类型，默认 `16k_zh` |
+| `timeoutMs` | number | 否 | 超时时间，默认 30000 |
+
+> **ASR 获取方式**：在[腾讯云控制台](https://console.cloud.tencent.com/asr)开通语音识别服务，获取 AppId、SecretId、SecretKey。
+
+> **微信自带语音识别**：如果公众号后台开启了"语音识别"功能，微信会自动返回识别结果（`Recognition` 字段），此时无需配置 `asr`。
 
 ---
 
@@ -472,20 +518,23 @@ pnpm -F @openclaw-china/shared test
 - 回调 GET/POST 链路
 - `plain / safe / compat` 基础边界
 - token / crypto / XML 基础设施
-- 文本消息与基础事件标准化
+- **全部入站消息类型**：文本、图片、语音、视频、短视频、位置、链接、事件
+- **语音转文字 (ASR)**：集成腾讯云语音识别，支持微信自带识别回退
 - routing / session / reply integration
 - passive reply 主路径
-- active outbound skeleton
+- **主动发送能力**：
+  - 文本消息（超长自动分割）
+  - 模板消息
+  - 图片/语音/视频媒体消息
+- **重试机制**：指数退避重试，处理 45009 限流错误
+- **时间窗口检查**：48小时交互窗口检测，发送前权限验证
 - aggregate / setup / install hint / README / release surfaces 接线
 
 ### 暂未完整承诺（P1/P2）
 
-- 图片、语音、视频等全量媒体收发
 - OAuth / JS-SDK
-- 自定义菜单与二维码
-- 模板消息全量业务能力
+- 自定义菜单与二维码全量能力
 - 完整多账号交互式 setup
-- 更完整的主动发送运营能力
 
 ---
 

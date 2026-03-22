@@ -4,6 +4,9 @@ import { dirname, join } from "node:path";
 
 import type { WechatMpAccountState, WechatMpPersistedState } from "./types.js";
 
+/** 48 hours in milliseconds - WeChat's interaction window */
+const INTERACTION_WINDOW_MS = 48 * 60 * 60 * 1000;
+
 const DEDUP_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_STATE_FILE = join(homedir(), ".openclaw", "wechat-mp", "data", "state.json");
 
@@ -117,4 +120,97 @@ export function setWechatMpStateFilePathForTests(nextPath?: string): void {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
+}
+
+// ============================================================================
+// User Interaction Tracking (48h Window)
+// ============================================================================
+
+/**
+ * Get the last interaction time for a user within an account.
+ * Returns null if the user has never interacted or interaction data doesn't exist.
+ *
+ * @param accountId The account identifier
+ * @param openId The user's openId
+ * @returns Last interaction timestamp in milliseconds, or null
+ */
+export async function getLastInteractionTime(
+  accountId: string,
+  openId: string
+): Promise<number | null> {
+  const state = await loadState();
+  const accountState = state.accounts[accountId];
+  if (!accountState?.userInteractions?.[openId]) {
+    return null;
+  }
+  return accountState.userInteractions[openId].lastInteractionAt;
+}
+
+/**
+ * Record a user interaction timestamp.
+ * Called when processing inbound messages to track the 48h interaction window.
+ *
+ * @param accountId The account identifier
+ * @param openId The user's openId
+ * @param timestamp Optional timestamp (defaults to Date.now())
+ */
+export async function recordUserInteraction(
+  accountId: string,
+  openId: string,
+  timestamp?: number
+): Promise<void> {
+  const state = await loadState();
+  const accountState = state.accounts[accountId] ?? {};
+  const userInteractions = accountState.userInteractions ?? {};
+
+  userInteractions[openId] = {
+    lastInteractionAt: timestamp ?? Date.now(),
+  };
+
+  state.accounts[accountId] = {
+    ...accountState,
+    userInteractions,
+  };
+
+  scheduleSave();
+}
+
+/**
+ * Check if a user is within the 48h interaction window.
+ *
+ * @param accountId The account identifier
+ * @param openId The user's openId
+ * @returns true if user has interacted within the last 48 hours
+ */
+export async function isWithinInteractionWindow(
+  accountId: string,
+  openId: string
+): Promise<boolean> {
+  const lastInteraction = await getLastInteractionTime(accountId, openId);
+  if (lastInteraction === null) {
+    return false;
+  }
+  return Date.now() - lastInteraction < INTERACTION_WINDOW_MS;
+}
+
+/**
+ * Get when the 48h interaction window expires for a user.
+ *
+ * @param accountId The account identifier
+ * @param openId The user's openId
+ * @returns Expiration timestamp in milliseconds, or null if outside window
+ */
+export async function getInteractionWindowExpiry(
+  accountId: string,
+  openId: string
+): Promise<number | null> {
+  const lastInteraction = await getLastInteractionTime(accountId, openId);
+  if (lastInteraction === null) {
+    return null;
+  }
+  const expiresAt = lastInteraction + INTERACTION_WINDOW_MS;
+  if (Date.now() >= expiresAt) {
+    return null;
+  }
+  return expiresAt;
 }

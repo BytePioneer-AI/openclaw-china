@@ -1,4 +1,4 @@
-import type { PluginConfig, WechatMpConfig, WechatMpAccountConfig } from "./types.js";
+import type { PluginConfig, WechatMpConfig, WechatMpAccountConfig, WechatMpASRCredentials } from "./types.js";
 
 /**
  * Default account identifier for single-account configurations.
@@ -90,6 +90,8 @@ export function resolveWechatMpAccount(params: {
         welcomeText: channelCfg.welcomeText,
         dmPolicy: channelCfg.dmPolicy,
         allowFrom: channelCfg.allowFrom,
+        retryConfig: channelCfg.retryConfig,
+        asr: channelCfg.asr,
         ...dedicatedAccount,
       }
     : {
@@ -107,6 +109,8 @@ export function resolveWechatMpAccount(params: {
         welcomeText: channelCfg.welcomeText,
         dmPolicy: channelCfg.dmPolicy,
         allowFrom: channelCfg.allowFrom,
+        retryConfig: channelCfg.retryConfig,
+        asr: channelCfg.asr,
       };
 
   const configured = Boolean(
@@ -210,4 +214,26 @@ export function parseWechatMpSessionKey(
   const parts = sessionKey.split(":");
   if (parts.length !== 3 || parts[0] !== "dm") return null;
   return { appId: parts[1], openId: parts[2] };
+}
+
+// ============================================================================
+// ASR CONFIGURATION HELPERS
+// ============================================================================
+
+/**
+ * Resolve ASR credentials from account configuration.
+ * Returns undefined if ASR is disabled or not fully configured.
+ */
+export function resolveWechatMpASRCredentials(config: WechatMpAccountConfig): WechatMpASRCredentials | undefined {
+  const asr = config.asr;
+  if (!asr?.enabled) return undefined;
+  if (!asr.appId || !asr.secretId || !asr.secretKey) return undefined;
+
+  return {
+    appId: asr.appId,
+    secretId: asr.secretId,
+    secretKey: asr.secretKey,
+    engineType: asr.engineType,
+    timeoutMs: asr.timeoutMs,
+  };
 }

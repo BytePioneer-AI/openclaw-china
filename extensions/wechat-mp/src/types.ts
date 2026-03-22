@@ -71,6 +71,31 @@ export type WechatMpAccountConfig = {
   welcomeText?: string;
   dmPolicy?: WechatMpDmPolicy;
   allowFrom?: string[];
+  /** Retry configuration for message sending (optional) */
+  retryConfig?: RetryConfig;
+  /**
+   * ASR (Automatic Speech Recognition) configuration for voice messages.
+   * Uses Tencent Cloud Flash ASR service.
+   */
+  asr?: {
+    enabled?: boolean;
+    appId?: string;
+    secretId?: string;
+    secretKey?: string;
+    engineType?: string;
+    timeoutMs?: number;
+  };
+};
+
+/**
+ * ASR credentials for Tencent Cloud Flash ASR service.
+ */
+export type WechatMpASRCredentials = {
+  appId: string;
+  secretId: string;
+  secretKey: string;
+  engineType?: string;
+  timeoutMs?: number;
 };
 
 /**
@@ -81,6 +106,151 @@ export type WechatMpConfig = WechatMpAccountConfig & {
   accounts?: Record<string, WechatMpAccountConfig>;
   defaultAccount?: string;
 };
+
+/**
+ * Template message data field.
+ * Supports first, keyword (keyword1-keyword30), and remark fields.
+ */
+export interface TemplateDataField {
+  value: string;
+  color?: string; // Optional color in hex format (e.g., "#173177")
+}
+
+/**
+ * Template message parameters for sending template messages.
+ * @see https://developers.weixin.qq.com/doc/offiaccount/Message_Management/Template_Message_Interface.html
+ */
+export interface TemplateMessageParams {
+  /** Receiver's openId */
+  touser: string;
+  /** Template ID from WeChat MP backend */
+  template_id: string;
+  /** Redirect URL after clicking (optional) */
+  url?: string;
+  /** Mini program jump target (optional, mutually exclusive with url) */
+  miniprogram?: {
+    appid: string;
+    pagepath?: string;
+  };
+  /** Template data with first, keyword(s), and remark fields */
+  data: {
+    first?: TemplateDataField;
+    remark?: TemplateDataField;
+    [key: `keyword${number}`]: TemplateDataField | undefined;
+  } & Record<string, TemplateDataField | undefined>;
+}
+
+/**
+ * Template message API response.
+ */
+export interface TemplateMessageResult {
+  errcode: number;
+  errmsg: string;
+  msgid?: number;
+}
+
+/**
+ * Supported media message types for */
+export type MediaMessageType = "image" | "voice" | "video";
+
+/**
+ * Media message parameters for sending
+ */
+export interface MediaMessageParams {
+  /** Media type: image, voice, or video */
+  type: MediaMessageType;
+  /** Media buffer (binary data) */
+  buffer: Buffer | Uint8Array;
+  /** Optional filename for upload */
+  filename?: string;
+  /** Video title (video only) */
+  title?: string;
+  /** Video description (video only) */
+  description?: string;
+}
+
+// ============================================================================
+// Retry Configuration
+// ============================================================================
+
+/**
+ * Retry policy presets
+ */
+export type RetryPolicy = "none" | "conservative" | "aggressive";
+
+/**
+ * Retry configuration for message sending
+ */
+export interface RetryConfig {
+  /** Maximum retry attempts (default 3) */
+  maxRetries?: number;
+  /** Initial delay in milliseconds (default 1000) */
+  initialDelay?: number;
+  /** Maximum delay in milliseconds (default 10000) */
+  maxDelay?: number;
+  /** Backoff multiplier (default 2) */
+  backoffMultiplier?: number;
+}
+
+/**
+ * Default retry configurations
+ */
+export const DEFAULT_RETRY_CONFIGS: Record<RetryPolicy, RetryConfig> = {
+  none: { maxRetries: 0 },
+  conservative: { maxRetries: 2, initialDelay: 2000, maxDelay: 10000, backoffMultiplier: 2 },
+  aggressive: { maxRetries: 5, initialDelay: 500, maxDelay: 30000, backoffMultiplier: 1.5 },
+};
+
+// ============================================================================
+// Time Window Configuration
+// ============================================================================
+
+/**
+ * Time window mode for controlling when messages can be sent.
+ * - always: No time restriction (default)
+ * - business: Only during business hours (9:00-18:00 weekdays)
+ * - custom: Use custom hour ranges defined in customRanges
+ */
+export type TimeWindowMode = "always" | "business" | "custom";
+
+/**
+ * Time range for custom time windows.
+ * Hours are in 24-hour format (0-23).
+ */
+export interface TimeRange {
+  /** Start hour (0-23) */
+  startHour: number;
+  /** End hour (0-23, exclusive) */
+  endHour: number;
+}
+
+/**
+ * Configuration for time window checking.
+ * Controls when messages are allowed to be sent.
+ */
+export interface TimeWindowConfig {
+  /** Time window mode */
+  mode: TimeWindowMode;
+  /** Optional timezone (e.g., 'Asia/Shanghai'), defaults to local time */
+  timezone?: string;
+  /** Custom time ranges (required when mode is 'custom') */
+  customRanges?: TimeRange[];
+}
+
+/**
+ * Result of probing send capability.
+ * Provides detailed information about whether a message can be sent.
+ */
+export interface SendCapabilityResult {
+  /** Whether message can be sent */
+  canSend: boolean;
+  /** Reason if cannot send (e.g., 'outside_48h_window', 'outside_time_window') */
+  reason?: string;
+  /** Timestamp of last user interaction (null if never interacted) */
+  lastInteractionAt: number | null;
+  /** When the 48h interaction window expires (null if outside window) */
+  windowExpiresAt: number | null;
+}
 
 /**
  * Plugin configuration interface (partial).
@@ -158,13 +328,96 @@ export type WechatMpImageMessage = {
 };
 
 /**
+ * WeChat MP inbound voice message structure.
+ */
+export type WechatMpVoiceMessage = {
+  ToUserName: string;
+  FromUserName: string;
+  CreateTime: number;
+  MsgType: "voice";
+  MediaId: string;
+  Format: string;
+  MsgId: string;
+  /** Voice recognition result (if voice recognition is enabled) */
+  Recognition?: string;
+};
+
+/**
+ * WeChat MP inbound video message structure.
+ */
+export type WechatMpVideoMessage = {
+  ToUserName: string;
+  FromUserName: string;
+  CreateTime: number;
+  MsgType: "video";
+  MediaId: string;
+  ThumbMediaId: string;
+  MsgId: string;
+};
+
+/**
+ * WeChat MP inbound short video message structure.
+ */
+export type WechatMpShortVideoMessage = {
+  ToUserName: string;
+  FromUserName: string;
+  CreateTime: number;
+  MsgType: "shortvideo";
+  MediaId: string;
+  ThumbMediaId: string;
+  MsgId: string;
+};
+
+/**
+ * WeChat MP inbound location message structure.
+ */
+export type WechatMpLocationMessage = {
+  ToUserName: string;
+  FromUserName: string;
+  CreateTime: number;
+  MsgType: "location";
+  Location_X: number;
+  Location_Y: number;
+  Scale: number;
+  Label: string;
+  MsgId: string;
+};
+
+/**
+ * WeChat MP inbound link message structure.
+ */
+export type WechatMpLinkMessage = {
+  ToUserName: string;
+  FromUserName: string;
+  CreateTime: number;
+  MsgType: "link";
+  Title: string;
+  Description: string;
+  Url: string;
+  MsgId: string;
+};
+
+/**
  * Union type for all WeChat MP inbound messages.
  */
 export type WechatMpInboundMessage =
   | WechatMpTextMessage
   | WechatMpEventMessage
   | WechatMpImageMessage
+  | WechatMpVoiceMessage
+  | WechatMpVideoMessage
+  | WechatMpShortVideoMessage
+  | WechatMpLocationMessage
+  | WechatMpLinkMessage
   | (Record<string, unknown> & { MsgType: string });
+
+/**
+ * Per-user interaction tracking for 48h window enforcement.
+ */
+export interface UserInteractionState {
+  /** Last interaction timestamp (ms) */
+  lastInteractionAt: number;
+}
 
 /**
  * WeChat MP account state for tracking runtime status.
@@ -182,6 +435,8 @@ export type WechatMpAccountState = {
   lastMessageId?: string;
   lastEvent?: string;
   lastFromUserName?: string;
+  /** Per-user interaction tracking for 48h window enforcement */
+  userInteractions?: Record<string, UserInteractionState>;
 };
 
 /**
@@ -207,7 +462,7 @@ export type WechatMpInboundCandidate = {
   target: string;
   sessionKey?: string;
   createTime: number;
-  msgType: "text" | "event";
+  msgType: "text" | "event" | "image" | "voice" | "video" | "shortvideo" | "location" | "link";
   msgId?: string;
   dedupeKey: string;
   encrypted: boolean;
@@ -216,6 +471,30 @@ export type WechatMpInboundCandidate = {
   event?: WechatMpInboundEventName;
   eventKey?: string;
   ticket?: string;
+  /** Image URL (image messages only) */
+  picUrl?: string;
+  /** Media ID for downloading media messages */
+  mediaId?: string;
+  /** Voice format (voice messages only) */
+  format?: string;
+  /** Voice recognition result (voice messages only, requires voice recognition enabled) */
+  recognition?: string;
+  /** Thumbnail media ID (video/shortvideo messages only) */
+  thumbMediaId?: string;
+  /** Location latitude (location messages only) */
+  locationX?: number;
+  /** Location longitude (location messages only) */
+  locationY?: number;
+  /** Map scale (location messages only) */
+  scale?: number;
+  /** Location label/address (location messages only) */
+  label?: string;
+  /** Link title (link messages only) */
+  title?: string;
+  /** Link description (link messages only) */
+  description?: string;
+  /** Link URL (link messages only) */
+  url?: string;
   toUserName?: string;
   raw: WechatMpInboundMessage;
 };

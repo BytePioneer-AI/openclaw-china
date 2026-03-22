@@ -221,6 +221,46 @@ export async function uploadWechatMpMedia(
   return data.data as UploadMediaResult;
 }
 
+/**
+ * Download temporary media (voice, image, video)
+ * Returns the media content as Buffer
+ */
+export async function downloadWechatMpMedia(
+  account: ResolvedWechatMpAccount,
+  mediaId: string
+): Promise<Buffer> {
+  const token = await getAccessToken(account);
+  const url = new URL(`${API_BASE}/cgi-bin/media/get`);
+  url.searchParams.set("access_token", token);
+  url.searchParams.set("media_id", mediaId);
+
+  const response = await fetch(url.toString());
+
+  // Check for JSON error response
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = (await response.json()) as WechatMpApiResponse;
+
+    if (data.errcode && isInvalidTokenError(data.errcode)) {
+      clearAccessTokenCache(account);
+      return downloadWechatMpMedia(account, mediaId);
+    }
+
+    if (data.errcode !== undefined && data.errcode !== 0) {
+      throw new WechatMpApiErrorImpl(
+        `Download media failed: ${data.errmsg ?? "unknown error"}`,
+        data.errcode,
+        data.errmsg ?? "unknown error",
+        account.accountId
+      );
+    }
+  }
+
+  // Return binary content as Buffer
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
 // ============================================================================
 // Menu API
 // ============================================================================
@@ -271,5 +311,47 @@ export async function deleteWechatMpMenu(
   return {
     errcode: response.errcode ?? 0,
     errmsg: response.errmsg ?? "ok",
+  };
+}
+
+// ============================================================================
+// Template Message API
+// ============================================================================
+
+export interface TemplateMessageParams {
+  touser: string;
+  template_id: string;
+  url?: string;
+  miniprogram?: {
+    appid: string;
+    pagepath?: string;
+  };
+  data: Record<string, { value: string; color?: string }>;
+}
+
+export interface TemplateMessageResult {
+  errcode: number;
+  errmsg: string;
+  msgid?: number;
+}
+
+/**
+ * Send template message
+ * https://developers.weixin.qq.com/doc/offiaccount/Message_management/Template_message_interface.html
+ */
+export async function sendTemplateMessage(
+  account: ResolvedWechatMpAccount,
+  params: TemplateMessageParams
+): Promise<TemplateMessageResult> {
+  const response = await callApi<TemplateMessageResult>(account, {
+    method: "POST",
+    path: "/cgi-bin/message/template/send",
+    body: params,
+  });
+
+  return {
+    errcode: response.errcode ?? 0,
+    errmsg: response.errmsg ?? "ok",
+    msgid: response.data?.msgid,
   };
 }
