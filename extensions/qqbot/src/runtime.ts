@@ -1,3 +1,5 @@
+import { createPluginRuntimeStore } from "openclaw/plugin-sdk/runtime-store";
+
 export interface PluginRuntime {
   log?: (msg: string) => void;
   error?: (msg: string) => void;
@@ -6,8 +8,8 @@ export interface PluginRuntime {
       resolveAgentRoute?: (params: {
         cfg: unknown;
         channel: string;
-        accountId?: string;
-        peer: { kind: string; id: string };
+        accountId?: string | null;
+        peer?: { kind: string; id: string } | null;
       }) => { sessionKey: string; accountId: string; agentId?: string };
     };
     session?: {
@@ -96,7 +98,11 @@ export interface PluginRuntime {
         defaultLimit?: number;
       }) => number;
       resolveChunkMode?: (cfg: unknown, channel: string) => unknown;
-      resolveMarkdownTableMode?: (params: { cfg: unknown; channel: string; accountId?: string }) => unknown;
+      resolveMarkdownTableMode?: (params: {
+        cfg: unknown;
+        channel: string;
+        accountId?: string;
+      }) => unknown;
       convertMarkdownTables?: (text: string, mode: unknown) => string;
       chunkTextWithMode?: (text: string, limit: number, mode: unknown) => string[];
       chunkMarkdownText?: (text: string, limit: number) => string[];
@@ -108,23 +114,17 @@ export interface PluginRuntime {
   [key: string]: unknown;
 }
 
-let runtime: PluginRuntime | null = null;
+const runtimeStore = createPluginRuntimeStore<PluginRuntime>(
+  "QQBot runtime not initialized. Ensure the plugin is registered.",
+);
 
-export function setQQBotRuntime(next: PluginRuntime): void {
-  runtime = next;
-}
-
-export function getQQBotRuntime(): PluginRuntime {
-  if (!runtime) {
-    throw new Error("QQBot runtime not initialized. Ensure the plugin is registered.");
-  }
-  return runtime;
-}
+export const setQQBotRuntime = runtimeStore.setRuntime;
+export const getQQBotRuntime = runtimeStore.getRuntime;
 
 export function isQQBotRuntimeInitialized(): boolean {
-  return runtime !== null;
+  return runtimeStore.tryGetRuntime() !== null;
 }
 
 export function clearQQBotRuntime(): void {
-  runtime = null;
+  runtimeStore.clearRuntime();
 }

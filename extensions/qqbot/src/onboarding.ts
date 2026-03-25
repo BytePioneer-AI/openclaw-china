@@ -2,38 +2,26 @@ import {
   DEFAULT_ACCOUNT_ID,
   listQQBotAccountIds,
   mergeQQBotAccountConfig,
+  normalizeAccountId,
   resolveDefaultQQBotAccountId,
   resolveQQBotCredentials,
   type PluginConfig,
   type QQBotConfig,
 } from "./config.js";
-
-export interface WizardPrompter {
-  note: (message: string, title?: string) => Promise<void>;
-  text: (opts: {
-    message: string;
-    placeholder?: string;
-    initialValue?: string;
-    validate?: (value: string | undefined) => string | undefined;
-  }) => Promise<string | symbol>;
-  confirm: (opts: { message: string; initialValue?: boolean }) => Promise<boolean>;
-  select: <T>(opts: {
-    message: string;
-    options: Array<{ value: T; label: string }>;
-    initialValue?: T;
-  }) => Promise<T | symbol>;
-}
-
-function isPromptCancelled<T>(value: T | symbol): value is symbol {
-  return typeof value === "symbol";
-}
+import {
+  splitSetupEntries,
+  type ChannelSetupDmPolicy,
+  type ChannelSetupWizard,
+  type OpenClawConfig,
+  type WizardPrompter,
+} from "openclaw/plugin-sdk/setup";
 
 function setQQBotCredentials(params: {
   cfg: PluginConfig;
   accountId: string;
   appId: string;
   clientSecret: string;
-}): PluginConfig {
+}): OpenClawConfig {
   const existing = params.cfg.channels?.qqbot ?? {};
 
   if (params.accountId === DEFAULT_ACCOUNT_ID) {
@@ -48,7 +36,7 @@ function setQQBotCredentials(params: {
           clientSecret: params.clientSecret,
         } as QQBotConfig,
       },
-    };
+    } as OpenClawConfig;
   }
 
   const accounts = (existing as QQBotConfig).accounts ?? {};
@@ -70,7 +58,134 @@ function setQQBotCredentials(params: {
         },
       } as QQBotConfig,
     },
-  };
+  } as OpenClawConfig;
+}
+
+function setQQBotDmPolicy(
+  cfg: OpenClawConfig,
+  accountId: string,
+  dmPolicy: "open" | "pairing" | "allowlist",
+): OpenClawConfig {
+  const existing = (cfg as PluginConfig).channels?.qqbot ?? {};
+
+  if (accountId === DEFAULT_ACCOUNT_ID) {
+    return {
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        qqbot: {
+          ...existing,
+          enabled: true,
+          dmPolicy,
+        } as QQBotConfig,
+      },
+    } as OpenClawConfig;
+  }
+
+  const accounts = (existing as QQBotConfig).accounts ?? {};
+  return {
+    ...cfg,
+    channels: {
+      ...cfg.channels,
+      qqbot: {
+        ...existing,
+        enabled: true,
+        accounts: {
+          ...accounts,
+          [accountId]: {
+            ...accounts[accountId],
+            enabled: true,
+            dmPolicy,
+          },
+        },
+      } as QQBotConfig,
+    },
+  } as OpenClawConfig;
+}
+
+function setQQBotAllowFrom(
+  cfg: OpenClawConfig,
+  accountId: string,
+  allowFrom: string[],
+): OpenClawConfig {
+  const existing = (cfg as PluginConfig).channels?.qqbot ?? {};
+
+  if (accountId === DEFAULT_ACCOUNT_ID) {
+    return {
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        qqbot: {
+          ...existing,
+          enabled: true,
+          allowFrom,
+        } as QQBotConfig,
+      },
+    } as OpenClawConfig;
+  }
+
+  const accounts = (existing as QQBotConfig).accounts ?? {};
+  return {
+    ...cfg,
+    channels: {
+      ...cfg.channels,
+      qqbot: {
+        ...existing,
+        enabled: true,
+        accounts: {
+          ...accounts,
+          [accountId]: {
+            ...accounts[accountId],
+            enabled: true,
+            allowFrom,
+          },
+        },
+      } as QQBotConfig,
+    },
+  } as OpenClawConfig;
+}
+
+function parseAllowFromInput(raw: string): string[] {
+  return splitSetupEntries(raw)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+async function promptQQBotAllowFrom(params: {
+  cfg: OpenClawConfig;
+  prompter: WizardPrompter;
+  accountId: string;
+}): Promise<OpenClawConfig> {
+  const account = mergeQQBotAccountConfig(params.cfg as PluginConfig, params.accountId);
+  const existing = account.allowFrom ?? [];
+
+  await params.prompter.note(
+    [
+      "通过 QQ Bot openid 设置私聊白名单。",
+      "示例:",
+      "- user:09f1xxxx",
+      "- 09f1xxxx",
+    ].join("\n"),
+    "QQ Bot 白名单",
+  );
+
+  const entry = String(
+    await params.prompter.text({
+      message: "QQ Bot allowFrom (用户 openid)",
+      placeholder: "user:openid-1, openid-2",
+      initialValue: existing[0] ? String(existing[0]) : undefined,
+      validate: (value) => (String(value ?? "").trim() ? undefined : "必填"),
+    }),
+  );
+
+  const unique = [
+    ...new Set([
+      ...existing.map((value) => String(value).trim()).filter(Boolean),
+      ...parseAllowFromInput(entry),
+    ]),
+  ];
+
+  return setQQBotAllowFrom(params.cfg, params.accountId, unique);
 }
 
 async function noteQQBotCredentialHelp(prompter: WizardPrompter): Promise<void> {
@@ -81,139 +196,141 @@ async function noteQQBotCredentialHelp(prompter: WizardPrompter): Promise<void> 
       "3) 在开发设置中配置沙箱成员或测试群",
       "4) 配置完成后可使用 openclaw gateway 启动连接",
       "",
-      "命令行也支持：openclaw channels add --channel qqbot --token \"AppID:ClientSecret\"",
+      '命令行也支持：openclaw channels add --channel qqbot --token "AppID:ClientSecret"',
     ].join("\n"),
-    "QQ Bot 配置"
+    "QQ Bot 配置",
   );
 }
 
-function resolveOnboardingAccountId(params: {
-  cfg: PluginConfig;
-  prompter: WizardPrompter;
-  shouldPromptAccountIds?: boolean;
-  accountOverrides?: Record<string, string> | undefined;
-}): Promise<string> | string {
-  const override = params.accountOverrides?.qqbot?.trim();
-  if (override) return override;
-
-  const defaultAccountId = resolveDefaultQQBotAccountId(params.cfg);
-  const accountIds = listQQBotAccountIds(params.cfg);
-
-  if (!params.shouldPromptAccountIds || accountIds.length <= 1) {
-    return defaultAccountId;
-  }
-
-  return params.prompter
-    .select({
-      message: "选择要配置的 QQ Bot 账户",
-      options: accountIds.map((accountId) => ({
-        value: accountId,
-        label: accountId === DEFAULT_ACCOUNT_ID ? "默认账户" : accountId,
-      })),
-      initialValue: defaultAccountId,
-    })
-    .then((selected) => (isPromptCancelled(selected) ? defaultAccountId : selected));
-}
-
-export const qqbotOnboardingAdapter = {
-  channel: "qqbot" as const,
-
-  getStatus: async (params: { cfg: PluginConfig }) => {
-    const accountIds = listQQBotAccountIds(params.cfg);
-    const configuredAccountId = accountIds.find((accountId) =>
-      Boolean(resolveQQBotCredentials(mergeQQBotAccountConfig(params.cfg, accountId)))
-    );
-    const configured = Boolean(configuredAccountId);
-    const defaultAccountId = resolveDefaultQQBotAccountId(params.cfg);
-
-    const statusLines = configured
-      ? [
-          configuredAccountId && configuredAccountId !== DEFAULT_ACCOUNT_ID
-            ? `QQ Bot: 已配置 (${configuredAccountId})`
-            : `QQ Bot: 已配置${defaultAccountId !== DEFAULT_ACCOUNT_ID ? ` (default=${defaultAccountId})` : ""}`,
-        ]
-      : ["QQ Bot: 需要 AppID 和 ClientSecret"];
-
+const qqbotDmPolicy: ChannelSetupDmPolicy = {
+  label: "QQ Bot",
+  channel: "qqbot",
+  policyKey: "channels.qqbot.dmPolicy",
+  allowFromKey: "channels.qqbot.allowFrom",
+  resolveConfigKeys: (_cfg, accountId) => {
+    const normalized = normalizeAccountId(accountId);
+    if (normalized === DEFAULT_ACCOUNT_ID) {
+      return {
+        policyKey: "channels.qqbot.dmPolicy",
+        allowFromKey: "channels.qqbot.allowFrom",
+      };
+    }
     return {
-      channel: "qqbot" as const,
-      configured,
-      statusLines,
-      selectionHint: configured ? "已配置" : "需要 AppID 和 ClientSecret",
-      quickstartScore: configured ? 2 : 0,
+      policyKey: `channels.qqbot.accounts.${normalized}.dmPolicy`,
+      allowFromKey: `channels.qqbot.accounts.${normalized}.allowFrom`,
     };
   },
+  getCurrent: (cfg, accountId) =>
+    mergeQQBotAccountConfig(cfg as PluginConfig, normalizeAccountId(accountId)).dmPolicy ?? "open",
+  setPolicy: (cfg, policy, accountId) =>
+    setQQBotDmPolicy(
+      cfg,
+      normalizeAccountId(accountId),
+      policy === "pairing" || policy === "allowlist" ? policy : "open",
+    ),
+  promptAllowFrom: async ({ cfg, prompter, accountId }) =>
+    await promptQQBotAllowFrom({
+      cfg,
+      prompter,
+      accountId: normalizeAccountId(accountId),
+    }),
+};
 
-  configure: async (params: {
-    cfg: PluginConfig;
-    prompter: WizardPrompter;
-    shouldPromptAccountIds?: boolean;
-    accountOverrides?: Record<string, string>;
-  }) => {
-    const accountId = await resolveOnboardingAccountId(params);
-    const merged = mergeQQBotAccountConfig(params.cfg, accountId);
+function isQQBotConfigured(cfg: OpenClawConfig): boolean {
+  return listQQBotAccountIds(cfg as PluginConfig).some((accountId) =>
+    Boolean(resolveQQBotCredentials(mergeQQBotAccountConfig(cfg as PluginConfig, accountId))),
+  );
+}
+
+export const qqbotSetupWizard: ChannelSetupWizard = {
+  channel: "qqbot",
+  status: {
+    configuredLabel: "configured",
+    unconfiguredLabel: "needs app credentials",
+    configuredHint: "已配置",
+    unconfiguredHint: "需要 AppID 和 ClientSecret",
+    configuredScore: 2,
+    unconfiguredScore: 0,
+    resolveConfigured: ({ cfg }) => isQQBotConfigured(cfg),
+    resolveStatusLines: ({ cfg, configured }) => {
+      if (!configured) {
+        return ["QQ Bot: 需要 AppID 和 ClientSecret"];
+      }
+
+      const accountIds = listQQBotAccountIds(cfg as PluginConfig);
+      const configuredAccountId = accountIds.find((accountId) =>
+        Boolean(resolveQQBotCredentials(mergeQQBotAccountConfig(cfg as PluginConfig, accountId))),
+      );
+      const defaultAccountId = resolveDefaultQQBotAccountId(cfg as PluginConfig);
+
+      return [
+        configuredAccountId && configuredAccountId !== DEFAULT_ACCOUNT_ID
+          ? `QQ Bot: 已配置 (${configuredAccountId})`
+          : `QQ Bot: 已配置${defaultAccountId !== DEFAULT_ACCOUNT_ID ? ` (default=${defaultAccountId})` : ""}`,
+      ];
+    },
+  },
+  credentials: [],
+  resolveAccountIdForConfigure: ({ accountOverride, cfg }) =>
+    normalizeAccountId(accountOverride ?? resolveDefaultQQBotAccountId(cfg as PluginConfig)),
+  finalize: async ({ cfg, accountId, prompter }) => {
+    const resolvedAccountId = normalizeAccountId(accountId);
+    const merged = mergeQQBotAccountConfig(cfg as PluginConfig, resolvedAccountId);
     const configured = Boolean(resolveQQBotCredentials(merged));
 
-    let next = params.cfg;
-    let appId: string | null = null;
-    let clientSecret: string | null = null;
-
+    let next = cfg;
     if (!configured) {
-      await noteQQBotCredentialHelp(params.prompter);
+      await noteQQBotCredentialHelp(prompter);
     } else {
-      const keepCurrent = await params.prompter.confirm({
+      const keepCurrent = await prompter.confirm({
         message:
-          accountId === DEFAULT_ACCOUNT_ID
+          resolvedAccountId === DEFAULT_ACCOUNT_ID
             ? "QQ Bot 凭证已配置，是否保留当前配置？"
-            : `账户 ${accountId} 的 QQ Bot 凭证已配置，是否保留当前配置？`,
+            : `账户 ${resolvedAccountId} 的 QQ Bot 凭证已配置，是否保留当前配置？`,
         initialValue: true,
       });
 
       if (keepCurrent) {
-        return { cfg: next, accountId };
+        return { cfg: next };
       }
     }
 
-    const nextAppId = await params.prompter.text({
-      message: "请输入 QQ Bot AppID",
-      placeholder: "例如: 102146862",
-      initialValue: typeof merged.appId === "string" ? merged.appId : undefined,
-      validate: (value) => (String(value ?? "").trim() ? undefined : "AppID 不能为空"),
+    const appId = String(
+      await prompter.text({
+        message: "请输入 QQ Bot AppID",
+        placeholder: "例如: 102146862",
+        initialValue: typeof merged.appId === "string" ? merged.appId : undefined,
+        validate: (value) => (String(value ?? "").trim() ? undefined : "AppID 不能为空"),
+      }),
+    ).trim();
+
+    const clientSecret = String(
+      await prompter.text({
+        message: "请输入 QQ Bot ClientSecret",
+        placeholder: "你的 ClientSecret",
+        validate: (value) => (String(value ?? "").trim() ? undefined : "ClientSecret 不能为空"),
+      }),
+    ).trim();
+
+    next = setQQBotCredentials({
+      cfg: next as PluginConfig,
+      accountId: resolvedAccountId,
+      appId,
+      clientSecret,
     });
-    if (isPromptCancelled(nextAppId)) {
-      return { cfg: next, accountId };
-    }
-    appId = String(nextAppId).trim();
 
-    const nextClientSecret = await params.prompter.text({
-      message: "请输入 QQ Bot ClientSecret",
-      placeholder: "你的 ClientSecret",
-      validate: (value) => (String(value ?? "").trim() ? undefined : "ClientSecret 不能为空"),
-    });
-    if (isPromptCancelled(nextClientSecret)) {
-      return { cfg: next, accountId };
-    }
-    clientSecret = String(nextClientSecret).trim();
-
-    if (appId && clientSecret) {
-      next = setQQBotCredentials({
-        cfg: next,
-        accountId,
-        appId,
-        clientSecret,
-      });
-    }
-
-    return { cfg: next, accountId };
+    return { cfg: next };
   },
-
-  disable: (cfg: PluginConfig): PluginConfig => ({
-    ...cfg,
-    channels: {
-      ...cfg.channels,
-      qqbot: {
-        ...(cfg.channels?.qqbot ?? {}),
-        enabled: false,
-      } as QQBotConfig,
-    },
-  }),
+  dmPolicy: qqbotDmPolicy,
+  disable: (cfg) =>
+    ({
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        qqbot: {
+          ...(cfg.channels?.qqbot ?? {}),
+          enabled: false,
+        } as QQBotConfig,
+      },
+    }) as OpenClawConfig,
 };

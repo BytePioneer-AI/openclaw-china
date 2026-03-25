@@ -13,6 +13,7 @@
     "extensions": [
       "./dist/index.js"
     ],
+    "setupEntry": "./dist/setup-entry.js",
     "channel": {
       "id": "qqbot",
       "label": "QQ Bot",
@@ -96,13 +97,15 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
+    "openclaw": "2026.3.23-2",
     "tsup": "^8.2.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {
-    "moltbot": ">=0.1.0"
+    "moltbot": ">=0.1.0",
+    "openclaw": "2026.3.23-2"
   },
   "peerDependenciesMeta": {
     "moltbot": {

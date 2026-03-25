@@ -53,21 +53,28 @@
 
 `extensions/qqbot/index.ts` 是插件真正的入口。
 
-它做的事情很少，但都是接入必须项：
+现在它已经切到新版 OpenClaw SDK 入口 helper，职责也更清晰：
 
 1. 导出 `qqbotPlugin` 和相关工具函数，方便单独引用。
-2. 在 `register(api)` 里调用 `registerChinaSetupCli(api, { channels: ["qqbot"] })`。
-3. 调用 `showChinaInstallHint(api)`。
-4. 如果宿主传入了 `api.runtime`，先调用 `setQQBotRuntime(...)` 保存运行时桥接。
-5. 最后执行 `api.registerChannel({ plugin: qqbotPlugin })`。
+2. 通过 `defineChannelPluginEntry(...)` 统一注册 `qqbotPlugin`。
+3. 通过 `setRuntime` 把宿主 runtime 注入到插件内部 runtime store。
+4. 在 `registerFull(api)` 中注册 `registerChinaSetupCli(api, { channels: ["qqbot"] })` 和 `showChinaInstallHint(api)`。
+5. 通过新增的 `setup-entry.ts` 提供 setup-only 轻量入口。
 
-其中唯一真正把渠道接进宿主渠道系统的动作是：
+其中真正把渠道接进宿主渠道系统的动作，已经变成由 SDK helper 统一完成：
 
 ```ts
-api.registerChannel({ plugin: qqbotPlugin });
+export default defineChannelPluginEntry({
+  plugin: qqbotPlugin,
+  setRuntime: (runtime) => setQQBotRuntime(runtime as unknown as PluginRuntime),
+  registerFull(api) {
+    registerChinaSetupCli(api, { channels: ["qqbot"] });
+    showChinaInstallHint(api);
+  },
+});
 ```
 
-如果没有这一步，宿主不会把 `qqbot` 视为一个渠道。
+同时 `extensions/qqbot/setup-entry.ts` 会导出 `defineSetupPluginEntry(qqbotSetupPlugin)`，让 setup 流程不再提前加载 gateway-heavy runtime。
 
 ### 2.3 ChannelPlugin 层
 
@@ -80,23 +87,33 @@ api.registerChannel({ plugin: qqbotPlugin });
 - `messaging`
 - `configSchema`
 - `reload`
-- `onboarding`
+- `setupWizard`
 - `config`
 - `security`
 - `setup`
+- `actions`
+- `pairing`
 - `outbound`
 - `gateway`
 
 这说明一个新渠道插件至少不只是“能发消息”就够了。在这个仓库里，更合理的目标是直接把渠道建成一个完整的 `ChannelPlugin` 适配器。
 
+另外，`qqbot` 现在也按新版模式拆成了三层：
+
+- `src/channel.shared.ts`：轻量 shared surface
+- `src/channel.setup.ts`：setup-only surface
+- `src/channel.ts`：full runtime surface
+
 ### 2.4 runtime 桥接层
 
-`extensions/qqbot/src/runtime.ts` 自己定义了一份最小运行时接口，然后通过：
+`extensions/qqbot/src/runtime.ts` 现在改成了官方 `createPluginRuntimeStore(...)`，而不是手写 module-level 单例。
+
+它仍然保留了 QQ Bot 本地需要的 runtime 兼容面，但 runtime 的存储和初始化路径已经对齐 OpenClaw SDK：
 
 - `setQQBotRuntime(next)`
 - `getQQBotRuntime()`
 
-把宿主 runtime 缓存在插件内部。
+也就是说，QQ Bot 现在是“官方 runtime store + 本地兼容类型扩展”，而不是完全手写的 runtime 桥。
 
 当前 `qqbot` 主要依赖宿主 runtime 的这些能力：
 
@@ -106,11 +123,11 @@ api.registerChannel({ plugin: qqbotPlugin });
 - `channel.text`
 - `system.enqueueSystemEvent`
 
-设计重点是：
+设计重点仍然是：
 
 - 插件不直接依赖宿主内部源码路径。
-- 插件只声明自己实际需要的 runtime 子集。
-- 这样更容易兼容不同宿主实现。
+- 插件只缓存自己实际需要的 runtime 能力。
+- 对 setup-only 生命周期和 full-runtime 生命周期使用同一套 runtime 注入入口。
 
 ### 2.5 配置与多账户约定
 

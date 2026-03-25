@@ -26,8 +26,29 @@ describe("qqbotPlugin capabilities", () => {
     expect(qqbotPlugin.capabilities.chatTypes).toEqual(["direct", "group", "channel"]);
   });
 
+  it("advertises shared message send support when configured", () => {
+    const discovery = qqbotPlugin.actions?.describeMessageTool?.({
+      cfg: {
+        channels: {
+          qqbot: {
+            appId: "app-1",
+            clientSecret: "secret-1",
+          },
+        },
+      },
+    } as never);
+
+    expect(discovery).toEqual({
+      actions: ["send"],
+      capabilities: [],
+    });
+  });
+
   it("accepts runtimes that only expose the direct reply dispatcher", async () => {
     const runtime = {
+      log: vi.fn(),
+      error: vi.fn(),
+      exit: vi.fn(),
       channel: {
         routing: {
           resolveAgentRoute: vi.fn(),
@@ -38,7 +59,7 @@ describe("qqbotPlugin capabilities", () => {
       },
     };
 
-    await qqbotPlugin.gateway.startAccount({
+    await qqbotPlugin.gateway!.startAccount!({
       cfg: {
         channels: {
           qqbot: {
@@ -49,11 +70,13 @@ describe("qqbotPlugin capabilities", () => {
       },
       runtime,
       accountId: "default",
+      setStatus: vi.fn(),
       log: {
         info: vi.fn(),
+        warn: vi.fn(),
         error: vi.fn(),
       },
-    });
+    } as never);
 
     expect(mocks.setQQBotRuntime).toHaveBeenCalledWith(runtime);
     expect(mocks.monitorQQBotProvider).toHaveBeenCalledWith(

@@ -40,8 +40,8 @@ function setupRuntime(params?: {
   routeResolver?: (input: {
     cfg: unknown;
     channel: string;
-    accountId?: string;
-    peer: { kind: string; id: string };
+    accountId?: string | null;
+    peer?: { kind: string; id: string } | null;
   }) => { sessionKey: string; accountId: string; agentId?: string };
   dispatchReplyWithDispatcher?: ReturnType<typeof vi.fn>;
   dispatchReplyWithBufferedBlockDispatcher?: ReturnType<typeof vi.fn>;
@@ -57,9 +57,10 @@ function setupRuntime(params?: {
         resolveAgentRoute:
           params?.routeResolver ??
           ((input) => {
-            const peerKind = input.peer.kind === "dm" ? "direct" : input.peer.kind;
+            const peer = input.peer ?? { kind: "direct", id: "unknown" };
+            const peerKind = peer.kind === "dm" ? "direct" : peer.kind;
             return {
-              sessionKey: `agent:main:qqbot:${peerKind}:${String(input.peer.id).toLowerCase()}`,
+              sessionKey: `agent:main:qqbot:${peerKind}:${String(peer.id).toLowerCase()}`,
               accountId: input.accountId ?? "default",
               agentId: "main",
             };
@@ -80,7 +81,7 @@ function setupRuntime(params?: {
         recordInboundSession,
       },
     },
-  });
+  } as import("./runtime.js").PluginRuntime);
 
   return {
     readSessionUpdatedAt,

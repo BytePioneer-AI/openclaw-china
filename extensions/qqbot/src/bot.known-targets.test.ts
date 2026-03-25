@@ -39,8 +39,8 @@ function setupSessionRuntime(params?: {
   routeResolver?: (input: {
     cfg: unknown;
     channel: string;
-    accountId?: string;
-    peer: { kind: string; id: string };
+    accountId?: string | null;
+    peer?: { kind: string; id: string } | null;
   }) => { sessionKey: string; accountId: string; agentId?: string };
   finalizeInboundContext?: (ctx: unknown) => unknown;
   dispatchReplyWithBufferedBlockDispatcher?: ReturnType<typeof vi.fn>;
@@ -57,9 +57,10 @@ function setupSessionRuntime(params?: {
         resolveAgentRoute:
           params?.routeResolver ??
           ((input) => {
-            const peerKind = input.peer.kind === "dm" ? "direct" : input.peer.kind;
+            const peer = input.peer ?? { kind: "direct", id: "unknown" };
+            const peerKind = peer.kind === "dm" ? "direct" : peer.kind;
             return {
-              sessionKey: `agent:main:qqbot:${peerKind}:${String(input.peer.id).toLowerCase()}`,
+              sessionKey: `agent:main:qqbot:${peerKind}:${String(peer.id).toLowerCase()}`,
               accountId: input.accountId ?? "default",
               agentId: "main",
             };
@@ -76,7 +77,7 @@ function setupSessionRuntime(params?: {
         recordInboundSession,
       },
     },
-  });
+  } as import("./runtime.js").PluginRuntime);
 
   return {
     readSessionUpdatedAt,
@@ -132,7 +133,7 @@ describe("QQBot inbound known-target recording", () => {
         },
         reply: {},
       },
-    });
+    } as import("./runtime.js").PluginRuntime);
   });
 
   afterEach(() => {
@@ -852,7 +853,7 @@ describe("QQBot direct session isolation", () => {
       channels: {
         qqbot: {
           ...baseCfg.channels.qqbot,
-          typingHeartbeatMode: "always",
+          typingHeartbeatMode: "always" as const,
           typingHeartbeatIntervalMs: 3000,
           accounts: {
             bot2: {
@@ -963,7 +964,7 @@ describe("QQBot direct session isolation", () => {
         channels: {
           qqbot: {
             ...baseCfg.channels.qqbot,
-            typingHeartbeatMode: "none",
+            typingHeartbeatMode: "none" as const,
           },
         },
       },
@@ -1147,10 +1148,11 @@ describe("QQBot direct session isolation", () => {
     const logger = createLogger();
     const sessionRuntime = setupSessionRuntime({
       routeResolver: (input) => {
-        if (input.peer.id.startsWith("group:")) {
+        const peerId = input.peer?.id ?? "";
+        if (peerId.startsWith("group:")) {
           return { sessionKey: "route-group-session", accountId: input.accountId ?? "default", agentId: "main" };
         }
-        if (input.peer.id.startsWith("channel:")) {
+        if (peerId.startsWith("channel:")) {
           return { sessionKey: "route-channel-session", accountId: input.accountId ?? "default", agentId: "main" };
         }
         return { sessionKey: "route-direct-session", accountId: input.accountId ?? "default", agentId: "main" };

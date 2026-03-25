@@ -1,4 +1,5 @@
 import type {
+  QQBotAccountConfig,
   QQBotC2CMarkdownChunkStrategy,
   QQBotC2CMarkdownDeliveryMode,
   QQBotTypingHeartbeatMode,
@@ -15,9 +16,11 @@ export type {
 
 export interface ResolvedQQBotAccount {
   accountId: string;
+  name?: string;
   enabled: boolean;
   configured: boolean;
   appId?: string;
+  config: QQBotAccountConfig;
   markdownSupport?: boolean;
   c2cMarkdownDeliveryMode?: QQBotC2CMarkdownDeliveryMode;
   c2cMarkdownChunkStrategy?: QQBotC2CMarkdownChunkStrategy;
