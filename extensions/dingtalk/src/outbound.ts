@@ -15,6 +15,7 @@
 import { sendMessageDingtalk } from "./send.js";
 import { sendMediaDingtalk } from "./media.js";
 import { getDingtalkRuntime } from "./runtime.js";
+import { parseDingtalkSendTarget } from "./targets.js";
 import {
   mergeDingtalkAccountConfig,
   resolveDingtalkAccountId,
@@ -30,20 +31,6 @@ export interface SendResult {
   chatId?: string;
   conversationId?: string;
 }
-
-/**
- * 解析目标 ID 和聊天类型
- */
-function parseTarget(to: string): { targetId: string; chatType: "direct" | "group" } {
-  if (to.startsWith("chat:")) {
-    return { targetId: to.slice(5), chatType: "group" };
-  }
-  if (to.startsWith("user:")) {
-    return { targetId: to.slice(5), chatType: "direct" };
-  }
-  return { targetId: to, chatType: "direct" };
-}
-
 
 /**
  * 钉钉出站适配器
@@ -93,13 +80,16 @@ export const dingtalkOutbound = {
       resolveDingtalkAccountId(cfg, accountId)
     );
 
-    const { targetId, chatType } = parseTarget(to);
+    const resolvedTarget = parseDingtalkSendTarget(to);
+    if (!resolvedTarget) {
+      throw new Error(`Invalid DingTalk target: ${to}`);
+    }
 
     const result = await sendMessageDingtalk({
       cfg: dingtalkCfg,
-      to: targetId,
+      to: resolvedTarget.targetId,
       text,
-      chatType,
+      chatType: resolvedTarget.chatType,
     });
 
     return {
@@ -130,15 +120,18 @@ export const dingtalkOutbound = {
       resolveDingtalkAccountId(cfg, accountId)
     );
 
-    const { targetId, chatType } = parseTarget(to);
+    const resolvedTarget = parseDingtalkSendTarget(to);
+    if (!resolvedTarget) {
+      throw new Error(`Invalid DingTalk target: ${to}`);
+    }
 
     // 先发送文本（如果有）
     if (text?.trim()) {
       await sendMessageDingtalk({
         cfg: dingtalkCfg,
-        to: targetId,
+        to: resolvedTarget.targetId,
         text,
-        chatType,
+        chatType: resolvedTarget.chatType,
       });
     }
 
@@ -147,9 +140,9 @@ export const dingtalkOutbound = {
       try {
         const result = await sendMediaDingtalk({
           cfg: dingtalkCfg,
-          to: targetId,
+          to: resolvedTarget.targetId,
           mediaUrl,
-          chatType,
+          chatType: resolvedTarget.chatType,
         });
 
         return {
@@ -165,9 +158,9 @@ export const dingtalkOutbound = {
         const fallbackText = `📎 ${mediaUrl}`;
         const result = await sendMessageDingtalk({
           cfg: dingtalkCfg,
-          to: targetId,
+          to: resolvedTarget.targetId,
           text: fallbackText,
-          chatType,
+          chatType: resolvedTarget.chatType,
         });
 
         return {
@@ -183,8 +176,8 @@ export const dingtalkOutbound = {
     return {
       channel: "dingtalk",
       messageId: text?.trim() ? `text_${Date.now()}` : "empty",
-      chatId: targetId,
-      conversationId: targetId,
+      chatId: resolvedTarget.targetId,
+      conversationId: resolvedTarget.targetId,
     };
   },
 };

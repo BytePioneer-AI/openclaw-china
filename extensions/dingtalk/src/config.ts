@@ -45,6 +45,9 @@ const DingtalkAccountSchema = z.object({
   
   /** 钉钉应用 AppSecret (clientSecret) */
   clientSecret: optionalCoercedString,
+
+  /** 连接模式: stream = 长连接, webhook = Webhook */
+  connectionMode: z.enum(["stream", "webhook"]).optional().default("stream"),
   
   /** 单聊策略: open=开放, pairing=配对, allowlist=白名单 */
   dmPolicy: z.enum(["open", "pairing", "allowlist"]).optional().default("open"),
@@ -120,6 +123,7 @@ const DINGTALK_ACCOUNT_KEYS = [
   "name",
   "clientId",
   "clientSecret",
+  "connectionMode",
   "dmPolicy",
   "groupPolicy",
   "requireMention",

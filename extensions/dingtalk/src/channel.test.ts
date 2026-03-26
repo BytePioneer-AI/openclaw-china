@@ -76,6 +76,34 @@ describe("dingtalk multi-account setup", () => {
       },
     });
   });
+
+  it("accepts the new setup input bag without changing existing patch semantics", () => {
+    const next = dingtalkPlugin.setup.applyAccountConfig({
+      cfg: asConfig({
+        channels: {
+          dingtalk: {},
+        },
+      }),
+      accountId: "ops",
+      input: {
+        clientId: "ops-id",
+        clientSecret: "ops-secret",
+        connectionMode: "webhook",
+      },
+    }) as PluginConfig;
+
+    expect(next.channels?.dingtalk).toEqual({
+      enabled: true,
+      accounts: {
+        ops: {
+          enabled: true,
+          clientId: "ops-id",
+          clientSecret: "ops-secret",
+          connectionMode: "webhook",
+        },
+      },
+    });
+  });
 });
 
 describe("dingtalk multi-account deletion", () => {

@@ -14,6 +14,7 @@
     "extensions": [
       "./dist/index.js"
     ],
+    "setupEntry": "./dist/setup-entry.js",
     "channel": {
       "id": "dingtalk",
       "label": "DingTalk",
@@ -79,6 +80,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./setup-entry": {
+      "types": "./dist/setup-entry.d.ts",
+      "default": "./dist/setup-entry.js"
     }
   },
   "scripts": {
@@ -98,15 +103,20 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "fast-check": "^3.22.0",
+    "openclaw": "^2026.3.23-2",
     "tsup": "^8.2.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {
+    "openclaw": ">=2026.3.23-2",
     "moltbot": ">=0.1.0"
   },
   "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    },
     "moltbot": {
       "optional": true
     }

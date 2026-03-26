@@ -27,8 +27,21 @@ import {
   monitorDingtalkProvider,
   stopDingtalkMonitorForAccount,
 } from "./monitor.js";
+import { sendMessageDingtalk } from "./send.js";
+import { dingtalkMessageActions } from "./actions.js";
 import { setDingtalkRuntime } from "./runtime.js";
-import { dingtalkOnboardingAdapter } from "./onboarding.js";
+import { dingtalkSetupWizard } from "./setup-wizard.js";
+import {
+  applyDingtalkAccountPatch,
+  buildDingtalkSetupPatch,
+  resolveDingtalkDmConfigKeys,
+} from "./setup-helpers.js";
+import {
+  formatDingtalkTargetDisplay,
+  inferDingtalkTargetChatType,
+  looksLikeDingtalkTarget,
+  normalizeDingtalkMessagingTarget,
+} from "./targets.js";
 
 /** 默认账户 ID */
 export { DEFAULT_ACCOUNT_ID } from "./config.js";
@@ -71,6 +84,7 @@ function resolveDingtalkAccount(params: {
     accountId,
     enabled,
     configured,
+    name: merged.name,
     clientId: credentials?.clientId,
   };
 }
@@ -148,7 +162,7 @@ export const dingtalkPlugin = {
    * Requirements: 1.3
    */
   capabilities: {
-    chatTypes: ["direct", "channel"] as const,
+    chatTypes: ["direct", "group"] as const,
     media: true,
     reactions: false,
     threads: false,
@@ -237,6 +251,11 @@ export const dingtalkPlugin = {
   reload: { configPrefixes: ["channels.dingtalk"] },
 
   /**
+   * 新版 setup surface
+   */
+  setupWizard: dingtalkSetupWizard,
+
+  /**
    * 账户配置适配器
    * Requirements: 2.1, 2.2, 2.3
    */
@@ -258,6 +277,11 @@ export const dingtalkPlugin = {
      * 获取默认账户 ID
      */
     defaultAccountId: (cfg: PluginConfig): string => resolveDefaultDingtalkAccountId(cfg),
+
+    /**
+     * 检查账户是否启用
+     */
+    isEnabled: (account: ResolvedDingtalkAccount): boolean => account.enabled,
 
     /**
      * 设置账户启用状态
@@ -388,6 +412,7 @@ export const dingtalkPlugin = {
      */
     describeAccount: (account: ResolvedDingtalkAccount) => ({
       accountId: account.accountId,
+      name: account.name,
       enabled: account.enabled,
       configured: account.configured,
     }),
@@ -415,6 +440,24 @@ export const dingtalkPlugin = {
    * 安全警告收集器
    */
   security: {
+    resolveDmPolicy: (params: {
+      cfg: PluginConfig;
+      accountId?: string;
+    }) => {
+      const resolvedAccountId = resolveDingtalkAccountId(params.cfg, params.accountId);
+      const merged = mergeDingtalkAccountConfig(params.cfg, resolvedAccountId);
+      const keys = resolveDingtalkDmConfigKeys(resolvedAccountId);
+
+      return {
+        policy: merged.dmPolicy ?? "open",
+        allowFrom: merged.allowFrom ?? [],
+        policyPath: keys.policyKey,
+        allowFromPath: keys.allowFromKey,
+        approveHint:
+          'Add the sender to channels.dingtalk.allowFrom or set channels.dingtalk.dmPolicy="open".',
+        normalizeEntry: (entry: string) => entry.trim().toLowerCase(),
+      };
+    },
     collectWarnings: (params: { cfg: PluginConfig }): string[] => {
       const dingtalkCfg = params.cfg.channels?.dingtalk;
       const groupPolicy = dingtalkCfg?.groupPolicy ?? "allowlist";
@@ -434,52 +477,55 @@ export const dingtalkPlugin = {
     applyAccountConfig: (params: {
       cfg: PluginConfig;
       accountId?: string;
+      input?: Record<string, unknown>;
       config?: Record<string, unknown>;
     }): PluginConfig => {
       const accountId = resolveDingtalkAccountId(params.cfg, params.accountId);
-      const seededCfg = moveDingtalkSingleAccountConfigToDefaultAccount(params.cfg);
-      const existing = seededCfg.channels?.dingtalk ?? {};
-
-      if (accountId === DEFAULT_ACCOUNT_ID && !canStoreDefaultAccountInAccounts(seededCfg)) {
-        return {
-          ...seededCfg,
-          channels: {
-            ...seededCfg.channels,
-            dingtalk: {
-              ...existing,
-              ...params.config,
-              enabled: true,
-            } as DingtalkConfig,
-          },
-        };
-      }
-
-      const accounts = (existing as DingtalkConfig).accounts ?? {};
-      return {
-        ...seededCfg,
-        channels: {
-          ...seededCfg.channels,
-          dingtalk: {
-            ...existing,
-            enabled: true,
-            accounts: {
-              ...accounts,
-              [accountId]: {
-                ...accounts[accountId],
-                ...params.config,
-                enabled: true,
-              },
-            },
-          } as DingtalkConfig,
-        },
-      };
+      const patch = buildDingtalkSetupPatch(params.input ?? params.config);
+      return applyDingtalkAccountPatch(params.cfg, accountId, patch);
     },
   },
 
   /**
-   * Onboarding 适配器
+   * 配对适配器
    */
-  onboarding: dingtalkOnboardingAdapter,
+  pairing: {
+    idLabel: "dingtalkUserId",
+    normalizeAllowEntry: (entry: string) => entry.trim().toLowerCase(),
+    notifyApproval: async (params: {
+      cfg: PluginConfig;
+      id: string;
+      accountId?: string;
+    }) => {
+      const accountId = resolveDingtalkAccountId(params.cfg, params.accountId);
+      const dingtalkCfg = mergeDingtalkAccountConfig(params.cfg, accountId);
+      await sendMessageDingtalk({
+        cfg: dingtalkCfg,
+        to: params.id,
+        text: "Your pairing request has been approved.",
+        chatType: "direct",
+      });
+    },
+  },
+
+  /**
+   * message tool actions
+   */
+  actions: dingtalkMessageActions,
+
+  /**
+   * 目标解析与展示
+   */
+  messaging: {
+    normalizeTarget: (raw: string) => normalizeDingtalkMessagingTarget(raw),
+    inferTargetChatType: (params: { to: string }) => inferDingtalkTargetChatType(params.to),
+    targetResolver: {
+      looksLikeId: (raw: string, normalized?: string) => looksLikeDingtalkTarget(raw, normalized),
+      hint: "Use user:<userid> for DMs or group:<conversationId> for DingTalk groups.",
+    },
+    formatTargetDisplay: (params: { target: string; display?: string }) =>
+      formatDingtalkTargetDisplay(params),
+  },
 
   /**
    * 出站消息适配器
@@ -527,7 +573,7 @@ export const dingtalkPlugin = {
         candidate?.channel?.routing?.resolveAgentRoute &&
         hasRealtimeReplyApi(candidate.channel?.reply as Record<string, unknown> | undefined)
       ) {
-        setDingtalkRuntime(runtimeCandidate as Record<string, unknown>);
+        setDingtalkRuntime(runtimeCandidate as Parameters<typeof setDingtalkRuntime>[0]);
       }
 
       return monitorDingtalkProvider({

@@ -252,40 +252,48 @@ export const SUPPORTED_CHANNELS = ["dingtalk", "feishu-china", "wecom", "wecom-a
 
 export type SupportedChannel = (typeof SUPPORTED_CHANNELS)[number];
 
+type CompatEntry = {
+  register: (api: unknown) => void;
+};
+
+function registerCompatEntry(entry: CompatEntry, api: MoltbotPluginApi): void {
+  entry.register(api);
+}
+
 const channelPlugins: Record<SupportedChannel, { register: (api: MoltbotPluginApi) => void }> = {
   dingtalk: {
     register: (api: MoltbotPluginApi) => {
-      dingtalkEntry.register(api);
+      registerCompatEntry(dingtalkEntry as CompatEntry, api);
     },
   },
   "feishu-china": {
     register: (api: MoltbotPluginApi) => {
-      feishuEntry.register(api);
+      registerCompatEntry(feishuEntry as CompatEntry, api);
     },
   },
   wecom: {
     register: (api: MoltbotPluginApi) => {
-      wecomEntry.register(api);
+      registerCompatEntry(wecomEntry as CompatEntry, api);
     },
   },
   "wecom-app": {
     register: (api: MoltbotPluginApi) => {
-      wecomAppEntry.register(api);
+      registerCompatEntry(wecomAppEntry as CompatEntry, api);
     },
   },
   "wecom-kf": {
     register: (api: MoltbotPluginApi) => {
-      wecomKfEntry.register(api);
+      registerCompatEntry(wecomKfEntry as CompatEntry, api);
     },
   },
   "wechat-mp": {
     register: (api: MoltbotPluginApi) => {
-      wechatMpEntry.register(api);
+      registerCompatEntry(wechatMpEntry as CompatEntry, api);
     },
   },
   qqbot: {
     register: (api: MoltbotPluginApi) => {
-      qqbotEntry.register(api);
+      registerCompatEntry(qqbotEntry as CompatEntry, api);
     },
   },
 };

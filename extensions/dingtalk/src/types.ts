@@ -122,6 +122,8 @@ export interface DingtalkSendResult {
 export interface ResolvedDingtalkAccount {
   /** 账户 ID */
   accountId: string;
+  /** 账户名称 */
+  name?: string;
   /** 是否启用 */
   enabled: boolean;
   /** 是否已配置（有凭证） */
