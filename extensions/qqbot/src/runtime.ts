@@ -1,3 +1,8 @@
+import {
+  createPluginRuntimeStore,
+  type PluginRuntime as OpenClawPluginRuntime,
+} from "openclaw/plugin-sdk/runtime-store";
+
 export interface PluginRuntime {
   log?: (msg: string) => void;
   error?: (msg: string) => void;
@@ -108,23 +113,24 @@ export interface PluginRuntime {
   [key: string]: unknown;
 }
 
-let runtime: PluginRuntime | null = null;
+const runtimeStore = createPluginRuntimeStore<PluginRuntime>(
+  "QQBot runtime not initialized. Ensure the plugin is registered.",
+);
 
-export function setQQBotRuntime(next: PluginRuntime): void {
-  runtime = next;
+export function setQQBotRuntime(next: PluginRuntime): void;
+export function setQQBotRuntime(next: OpenClawPluginRuntime): void;
+export function setQQBotRuntime(next: OpenClawPluginRuntime | PluginRuntime): void {
+  runtimeStore.setRuntime(next as PluginRuntime);
 }
 
 export function getQQBotRuntime(): PluginRuntime {
-  if (!runtime) {
-    throw new Error("QQBot runtime not initialized. Ensure the plugin is registered.");
-  }
-  return runtime;
+  return runtimeStore.getRuntime();
 }
 
 export function isQQBotRuntimeInitialized(): boolean {
-  return runtime !== null;
+  return runtimeStore.tryGetRuntime() !== null;
 }
 
 export function clearQQBotRuntime(): void {
-  runtime = null;
+  runtimeStore.clearRuntime();
 }
