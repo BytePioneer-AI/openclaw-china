@@ -18,6 +18,7 @@ export interface ResolvedQQBotAccount {
   enabled: boolean;
   configured: boolean;
   appId?: string;
+  streaming?: boolean;
   markdownSupport?: boolean;
   c2cMarkdownDeliveryMode?: QQBotC2CMarkdownDeliveryMode;
   c2cMarkdownChunkStrategy?: QQBotC2CMarkdownChunkStrategy;

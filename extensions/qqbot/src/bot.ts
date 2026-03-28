@@ -30,6 +30,8 @@ import {
   resolveInboundMediaTempDir,
   resolveQQBotAutoSendLocalPathMedia,
   resolveQQBotC2CMarkdownSafeChunkByteLimit,
+  resolveQQBotStreaming,
+  resolveQQBotCredentials,
   resolveQQBotTypingHeartbeatIntervalMs,
   resolveQQBotTypingHeartbeatMode,
   resolveQQBotTypingInputSeconds,
@@ -57,6 +59,7 @@ import {
   type RefAttachmentSummary,
 } from "./ref-index-store.js";
 import { getQQBotRuntime } from "./runtime.js";
+import { QQBotStreamingController } from "./streaming.js";
 import type {
   InboundContext,
   QQInboundAttachment,
@@ -2813,6 +2816,23 @@ export function looksLikeStructuredMarkdown(text: string): boolean {
   );
 }
 
+function looksLikeQQBotStreamingIneligibleMarkdown(text: string): boolean {
+  const normalized = normalizeQQBotMarkdownSegment(text);
+  if (!normalized) {
+    return false;
+  }
+
+  const lines = normalized.split("\n");
+  return (
+    hasQQBotMarkdownTable(normalized) ||
+    lines.some((line) => MARKDOWN_ATX_HEADING_RE.test(line)) ||
+    lines.some((line) => MARKDOWN_BLOCKQUOTE_RE.test(line)) ||
+    lines.some((line) => MARKDOWN_FENCE_RE.test(line)) ||
+    lines.some((line) => MARKDOWN_THEMATIC_BREAK_RE.test(line)) ||
+    lines.some((line) => MARKDOWN_LIST_ITEM_RE.test(line))
+  );
+}
+
 export function chunkC2CMarkdownText(params: {
   text: string;
   limit: number;
@@ -3304,10 +3324,31 @@ async function dispatchToAgent(params: {
     const c2cMarkdownChunkStrategy = qqCfg.c2cMarkdownChunkStrategy ?? "markdown-block";
     const c2cMarkdownSafeChunkByteLimit = resolveQQBotC2CMarkdownSafeChunkByteLimit(qqCfg);
     const isC2CTarget = isQQBotC2CTarget(target.to);
+    const streamingEnabled =
+      isC2CTarget && !replyFinalOnly && resolveQQBotStreaming(qqCfg);
     const useC2CMarkdownTransport = markdownSupport && isC2CTarget;
     let bufferedC2CMarkdownTexts: string[] = [];
     let bufferedC2CMarkdownMediaUrls: string[] = [];
     const bufferedC2CMarkdownMediaSeen = new Set<string>();
+    const streamingCredentials =
+      streamingEnabled ? resolveQQBotCredentials(qqCfg) : undefined;
+    const streamingController =
+      streamingEnabled && inbound.c2cOpenid && streamingCredentials
+        ? new QQBotStreamingController({
+            appId: streamingCredentials.appId,
+            clientSecret: streamingCredentials.clientSecret,
+            openid: inbound.c2cOpenid,
+            messageId: inbound.messageId,
+            eventId: inbound.eventId ?? inbound.messageId,
+            logger,
+            logPrefix: `[qqbot:${outboundAccountId}:streaming]`,
+            onFirstChunk: async () => {
+              markVisibleOutboundStarted();
+              markReplyDelivered();
+              typingHeartbeat?.stop();
+            },
+          })
+        : null;
 
     const hasBufferedC2CMarkdownReply = (): boolean =>
       bufferedC2CMarkdownTexts.length > 0 || bufferedC2CMarkdownMediaUrls.length > 0;
@@ -3317,6 +3358,37 @@ async function dispatchToAgent(params: {
       if (!next || bufferedC2CMarkdownMediaSeen.has(next)) return;
       bufferedC2CMarkdownMediaSeen.add(next);
       bufferedC2CMarkdownMediaUrls.push(next);
+    };
+
+    const handleStreamingPartialReply = async (payload: { text?: string }): Promise<void> => {
+      if (!streamingController || shouldSuppressVisibleReplies()) {
+        return;
+      }
+
+      const rawText = payload.text ?? "";
+      if (!rawText.trim()) {
+        return;
+      }
+
+      const extractedTextMedia = extractQQBotReplyMedia({
+        text: rawText,
+        logger,
+        autoSendLocalPathMedia: resolveQQBotAutoSendLocalPathMedia(qqCfg),
+      });
+      const cleanedText = sanitizeQQBotOutboundText(extractedTextMedia.text);
+      if (!cleanedText) {
+        return;
+      }
+
+      if (
+        !streamingController.hasSuccessfulChunk &&
+        (extractedTextMedia.mediaUrls.length > 0 ||
+          looksLikeQQBotStreamingIneligibleMarkdown(cleanedText))
+      ) {
+        return;
+      }
+
+      await streamingController.onPartialReply(cleanedText);
     };
 
     const sendC2CMarkdownTransportPayload = async (params: {
@@ -3490,8 +3562,20 @@ async function dispatchToAgent(params: {
       const suppressEchoText =
         mediaQueue.length > 0 &&
         shouldSuppressQQBotTextWhenMediaPresent(extractedTextMedia.text, cleanedText);
-      const suppressText = deliveryDecision.suppressText || suppressEchoText;
+      const streamingOwnsAssistantText =
+        info?.kind !== "tool" &&
+        Boolean(
+          streamingController &&
+            streamingController.hasSuccessfulChunk &&
+            !streamingController.shouldFallbackToStatic
+        );
+      const suppressText =
+        deliveryDecision.suppressText || suppressEchoText || streamingOwnsAssistantText;
       const textToSend = suppressText ? "" : cleanedText;
+
+      if (streamingOwnsAssistantText && mediaQueue.length === 0 && !textToSend) {
+        return;
+      }
 
       if (useC2CMarkdownTransport) {
         const shouldBufferFinalOnlyPayload = replyFinalOnly && (!info?.kind || info.kind === "final");
@@ -3594,89 +3678,101 @@ async function dispatchToAgent(params: {
       isC2CTarget && !replyFinalOnly
         ? {
             disableBlockStreaming: false,
+            ...(streamingController
+              ? {
+                  onPartialReply: handleStreamingPartialReply,
+                }
+              : {}),
           }
         : undefined;
-    if (isC2CTarget && !replyFinalOnly && dispatchDirect) {
-      logger.debug(`[dispatch] mode=direct session=${routeSessionKey} to=${target.to}`);
-      await dispatchDirect({
-        ctx: finalCtx,
-        cfg,
-        dispatcherOptions: {
-          deliver,
-          humanDelay,
-          onError: (err: unknown, info: { kind: string }) => {
-            logger.error(`${info.kind} reply failed: ${String(err)}`);
-          },
-          onSkip: (_payload: unknown, info: { kind: string; reason: string }) => {
-            if (info.reason !== "silent") {
-              logger.info(`reply skipped: ${info.reason}`);
-            }
-          },
-        },
-        replyOptions: streamingReplyOptions,
-      });
-      await flushBufferedC2CMarkdownReply();
-    } else if (dispatchBuffered) {
-      logger.debug(`[dispatch] mode=buffered session=${routeSessionKey} to=${target.to}`);
-      await dispatchBuffered({
-        ctx: finalCtx,
-        cfg,
-        dispatcherOptions: {
-          deliver,
-          humanDelay,
-          onError: (err: unknown, info: { kind: string }) => {
-            logger.error(`${info.kind} reply failed: ${String(err)}`);
-          },
-          onSkip: (_payload: unknown, info: { kind: string; reason: string }) => {
-            if (info.reason !== "silent") {
-              logger.info(`reply skipped: ${info.reason}`);
-            }
-          },
-        },
-        replyOptions: streamingReplyOptions,
-      });
-      await flushBufferedC2CMarkdownReply();
-    } else {
-      logger.debug(`[dispatch] mode=legacy session=${routeSessionKey} to=${target.to}`);
-      const dispatcherResult = replyApi.createReplyDispatcherWithTyping
-        ? replyApi.createReplyDispatcherWithTyping({
+    try {
+      if (isC2CTarget && !replyFinalOnly && dispatchDirect) {
+        logger.debug(`[dispatch] mode=direct session=${routeSessionKey} to=${target.to}`);
+        await dispatchDirect({
+          ctx: finalCtx,
+          cfg,
+          dispatcherOptions: {
             deliver,
             humanDelay,
             onError: (err: unknown, info: { kind: string }) => {
               logger.error(`${info.kind} reply failed: ${String(err)}`);
             },
-          })
-        : {
-            dispatcher: replyApi.createReplyDispatcher?.({
+            onSkip: (_payload: unknown, info: { kind: string; reason: string }) => {
+              if (info.reason !== "silent") {
+                logger.info(`reply skipped: ${info.reason}`);
+              }
+            },
+          },
+          replyOptions: streamingReplyOptions,
+        });
+        await flushBufferedC2CMarkdownReply();
+      } else if (dispatchBuffered) {
+        logger.debug(`[dispatch] mode=buffered session=${routeSessionKey} to=${target.to}`);
+        await dispatchBuffered({
+          ctx: finalCtx,
+          cfg,
+          dispatcherOptions: {
+            deliver,
+            humanDelay,
+            onError: (err: unknown, info: { kind: string }) => {
+              logger.error(`${info.kind} reply failed: ${String(err)}`);
+            },
+            onSkip: (_payload: unknown, info: { kind: string; reason: string }) => {
+              if (info.reason !== "silent") {
+                logger.info(`reply skipped: ${info.reason}`);
+              }
+            },
+          },
+          replyOptions: streamingReplyOptions,
+        });
+        await flushBufferedC2CMarkdownReply();
+      } else {
+        logger.debug(`[dispatch] mode=legacy session=${routeSessionKey} to=${target.to}`);
+        const dispatcherResult = replyApi.createReplyDispatcherWithTyping
+          ? replyApi.createReplyDispatcherWithTyping({
               deliver,
               humanDelay,
               onError: (err: unknown, info: { kind: string }) => {
                 logger.error(`${info.kind} reply failed: ${String(err)}`);
               },
-            }),
-            replyOptions: {},
-            markDispatchIdle: () => undefined,
-          };
+            })
+          : {
+              dispatcher: replyApi.createReplyDispatcher?.({
+                deliver,
+                humanDelay,
+                onError: (err: unknown, info: { kind: string }) => {
+                  logger.error(`${info.kind} reply failed: ${String(err)}`);
+                },
+              }),
+              replyOptions: {},
+              markDispatchIdle: () => undefined,
+            };
 
-      if (!dispatcherResult.dispatcher || !replyApi.dispatchReplyFromConfig) {
-        logger.warn("dispatcher not available, skipping reply");
-        return;
+        if (!dispatcherResult.dispatcher || !replyApi.dispatchReplyFromConfig) {
+          logger.warn("dispatcher not available, skipping reply");
+          return;
+        }
+
+        await replyApi.dispatchReplyFromConfig({
+          ctx: finalCtx,
+          cfg,
+          dispatcher: dispatcherResult.dispatcher,
+          replyOptions: {
+            ...(typeof dispatcherResult.replyOptions === "object" && dispatcherResult.replyOptions
+              ? dispatcherResult.replyOptions
+              : {}),
+            ...(streamingReplyOptions ?? {}),
+          },
+        });
+
+        dispatcherResult.markDispatchIdle?.();
+        await flushBufferedC2CMarkdownReply();
       }
-
-      await replyApi.dispatchReplyFromConfig({
-        ctx: finalCtx,
-        cfg,
-        dispatcher: dispatcherResult.dispatcher,
-        replyOptions: {
-          ...(typeof dispatcherResult.replyOptions === "object" && dispatcherResult.replyOptions
-            ? dispatcherResult.replyOptions
-            : {}),
-          ...(streamingReplyOptions ?? {}),
-        },
-      });
-
-      dispatcherResult.markDispatchIdle?.();
-      await flushBufferedC2CMarkdownReply();
+    } finally {
+      if (streamingController) {
+        await streamingController.finalize();
+        streamingController.dispose();
+      }
     }
 
     const noReplyFallback = resolveQQBotNoReplyFallback({

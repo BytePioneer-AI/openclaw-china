@@ -18,11 +18,16 @@ vi.mock("@openclaw-china/shared", async () => {
 });
 
 import {
+  QQBotStreamContentType,
+  QQBotStreamInputMode,
+  QQBotStreamInputState,
   MediaFileType,
+  allocateMsgSeq,
   clearTokenCache,
   getAccessToken,
   sendC2CInputNotify,
   sendC2CMessage,
+  sendC2CStreamMessage,
   sendChannelMessage,
   sendProactiveC2CMessage,
   sendProactiveGroupMessage,
@@ -361,5 +366,80 @@ describe("getAccessToken", () => {
     expect(firstBody.event_id).toBe("evt-dup-group-1");
     expect(secondBody.event_id).toBe("evt-dup-group-1");
     expect(secondBody.msg_seq).toBeGreaterThan(firstBody.msg_seq ?? 0);
+  });
+
+  it("sends C2C stream messages to the stream_messages endpoint", async () => {
+    mocks.httpPost.mockResolvedValue({
+      id: "stream-msg-1",
+      timestamp: 5,
+    });
+
+    const msgSeq = allocateMsgSeq("stream:msg-stream-1:0");
+    const result = await sendC2CStreamMessage({
+      accessToken: "token-1",
+      openid: "UserABC123XYZ",
+      request: {
+        input_mode: QQBotStreamInputMode.REPLACE,
+        input_state: QQBotStreamInputState.GENERATING,
+        content_type: QQBotStreamContentType.MARKDOWN,
+        content_raw: "hello streaming",
+        event_id: "evt-stream-1",
+        msg_id: "msg-stream-1",
+        msg_seq: msgSeq,
+        index: 0,
+      },
+    });
+
+    expect(result).toEqual({
+      id: "stream-msg-1",
+      timestamp: 5,
+    });
+    expect(mocks.httpPost).toHaveBeenCalledWith(
+      "https://api.sgroup.qq.com/v2/users/UserABC123XYZ/stream_messages",
+      {
+        input_mode: "replace",
+        input_state: 1,
+        content_type: "markdown",
+        content_raw: "hello streaming",
+        event_id: "evt-stream-1",
+        msg_id: "msg-stream-1",
+        msg_seq: msgSeq,
+        index: 0,
+      },
+      expect.objectContaining({
+        timeout: 15000,
+        headers: {
+          Authorization: "QQBot token-1",
+        },
+      })
+    );
+  });
+
+  it("preserves stream API error payloads for callers to handle", async () => {
+    mocks.httpPost.mockResolvedValue({
+      code: 40001,
+      message: "stream failure",
+    });
+
+    await expect(
+      sendC2CStreamMessage({
+        accessToken: "token-1",
+        openid: "UserABC123XYZ",
+        request: {
+          input_mode: QQBotStreamInputMode.REPLACE,
+          input_state: QQBotStreamInputState.DONE,
+          content_type: QQBotStreamContentType.MARKDOWN,
+          content_raw: "final text",
+          event_id: "evt-stream-2",
+          msg_id: "msg-stream-2",
+          msg_seq: allocateMsgSeq("stream:msg-stream-2:0"),
+          index: 1,
+          stream_msg_id: "stream-session-1",
+        },
+      })
+    ).resolves.toEqual({
+      code: 40001,
+      message: "stream failure",
+    });
   });
 });

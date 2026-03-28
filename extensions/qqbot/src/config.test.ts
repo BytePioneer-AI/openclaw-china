@@ -11,6 +11,7 @@ import {
   resolveQQBotASRCredentials,
   resolveQQBotC2CMarkdownSafeChunkByteLimit,
   resolveQQBotCredentials,
+  resolveQQBotStreaming,
   resolveQQBotTypingHeartbeatIntervalMs,
   resolveQQBotTypingHeartbeatMode,
   resolveQQBotTypingInputSeconds,
@@ -28,6 +29,7 @@ describe("QQBotConfigSchema", () => {
     expect(resolveQQBotTypingHeartbeatMode(cfg)).toBe("idle");
     expect(resolveQQBotTypingHeartbeatIntervalMs(cfg)).toBe(5000);
     expect(resolveQQBotTypingInputSeconds(cfg)).toBe(60);
+    expect(resolveQQBotStreaming(cfg)).toBe(false);
     expect(cfg.longTaskNoticeDelayMs).toBe(30000);
     expect(resolveQQBotAutoSendLocalPathMedia(cfg)).toBe(true);
     expect(resolveInboundMediaDir(cfg)).toBe(join(homedir(), ".openclaw", "media", "qqbot", "inbound"));
@@ -231,6 +233,26 @@ describe("QQBotConfigSchema", () => {
     expect(resolveQQBotTypingHeartbeatMode(merged)).toBe("always");
     expect(resolveQQBotTypingHeartbeatIntervalMs(merged)).toBe(3000);
     expect(resolveQQBotTypingInputSeconds(merged)).toBe(90);
+  });
+
+  it("allows account-level override for streaming config", () => {
+    const merged = mergeQQBotAccountConfig(
+      {
+        channels: {
+          qqbot: {
+            streaming: false,
+            accounts: {
+              main: {
+                streaming: true,
+              },
+            },
+          },
+        },
+      },
+      "main"
+    );
+
+    expect(resolveQQBotStreaming(merged)).toBe(true);
   });
 
   it("normalizes runtime numeric credentials without schema parse", () => {

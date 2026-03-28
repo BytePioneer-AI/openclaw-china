@@ -38,6 +38,7 @@ const plugin = {
       defaultAccount: { type: "string" },
       appId: { type: ["string", "number"] },
       clientSecret: { type: "string" },
+      streaming: { type: "boolean" },
       displayAliases: {
         type: "object",
         additionalProperties: { type: "string" }
@@ -92,6 +93,7 @@ const plugin = {
             enabled: { type: "boolean" },
             appId: { type: ["string", "number"] },
             clientSecret: { type: "string" },
+            streaming: { type: "boolean" },
             displayAliases: {
               type: "object",
               additionalProperties: { type: "string" }

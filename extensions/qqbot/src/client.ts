@@ -55,6 +55,10 @@ function nextMsgSeq(sequenceKey?: string): number {
   return MSG_SEQ_BASE + next;
 }
 
+export function allocateMsgSeq(sequenceKey?: string): number {
+  return nextMsgSeq(sequenceKey);
+}
+
 function resolveMsgSeqKey(messageId?: string, eventId?: string): string | undefined {
   if (messageId) return `msg:${messageId}`;
   if (eventId) return `event:${eventId}`;
@@ -211,6 +215,50 @@ type QQBotMessageResponse = {
     ref_idx?: string;
   };
 };
+
+export const QQBotStreamInputMode = {
+  REPLACE: "replace",
+} as const;
+
+export type QQBotStreamInputMode =
+  (typeof QQBotStreamInputMode)[keyof typeof QQBotStreamInputMode];
+
+export const QQBotStreamInputState = {
+  GENERATING: 1,
+  DONE: 10,
+} as const;
+
+export type QQBotStreamInputState =
+  (typeof QQBotStreamInputState)[keyof typeof QQBotStreamInputState];
+
+export const QQBotStreamContentType = {
+  MARKDOWN: "markdown",
+} as const;
+
+export type QQBotStreamContentType =
+  (typeof QQBotStreamContentType)[keyof typeof QQBotStreamContentType];
+
+export interface StreamMessageRequest {
+  input_mode: QQBotStreamInputMode;
+  input_state: QQBotStreamInputState;
+  content_type: QQBotStreamContentType;
+  content_raw: string;
+  event_id: string;
+  msg_id: string;
+  msg_seq: number;
+  index: number;
+  stream_msg_id?: string;
+}
+
+export interface StreamMessageResponse {
+  code?: number;
+  message?: string;
+  id?: string;
+  timestamp?: string | number;
+  ext_info?: {
+    ref_idx?: string;
+  };
+}
 
 function buildMessageBody(params: {
   content: string;
@@ -477,6 +525,31 @@ export async function sendC2CMediaMessage(params: {
           ? { event_id: params.eventId }
           : {}),
     }),
+  });
+}
+
+export async function sendC2CStreamMessage(params: {
+  accessToken: string;
+  openid: string;
+  request: StreamMessageRequest;
+}): Promise<StreamMessageResponse> {
+  const body: Record<string, unknown> = {
+    input_mode: params.request.input_mode,
+    input_state: params.request.input_state,
+    content_type: params.request.content_type,
+    content_raw: params.request.content_raw,
+    event_id: params.request.event_id,
+    msg_id: params.request.msg_id,
+    msg_seq: params.request.msg_seq,
+    index: params.request.index,
+  };
+
+  if (params.request.stream_msg_id) {
+    body.stream_msg_id = params.request.stream_msg_id;
+  }
+
+  return apiPost(params.accessToken, `/v2/users/${params.openid}/stream_messages`, body, {
+    timeout: 15000,
   });
 }
 

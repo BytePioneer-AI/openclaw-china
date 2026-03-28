@@ -1,3 +1,11 @@
+export type QQBotPartialReplyPayload = { text?: string };
+
+export type QQBotReplyOptions = {
+  disableBlockStreaming?: boolean;
+  onPartialReply?: (payload: QQBotPartialReplyPayload) => Promise<void> | void;
+  [key: string]: unknown;
+};
+
 export interface PluginRuntime {
   log?: (msg: string) => void;
   error?: (msg: string) => void;
@@ -50,7 +58,7 @@ export interface PluginRuntime {
         ctx: unknown;
         cfg: unknown;
         dispatcher?: unknown;
-        replyOptions?: unknown;
+        replyOptions?: QQBotReplyOptions;
       }) => Promise<{ queuedFinal: boolean; counts: { final: number } }>;
       dispatchReplyWithDispatcher?: (params: {
         ctx: unknown;
@@ -62,7 +70,7 @@ export interface PluginRuntime {
           onReplyStart?: () => Promise<void> | void;
           humanDelay?: unknown;
         };
-        replyOptions?: unknown;
+        replyOptions?: QQBotReplyOptions;
       }) => Promise<unknown>;
       dispatchReplyWithBufferedBlockDispatcher?: (params: {
         ctx: unknown;
@@ -74,7 +82,7 @@ export interface PluginRuntime {
           onReplyStart?: () => Promise<void> | void;
           humanDelay?: unknown;
         };
-        replyOptions?: unknown;
+        replyOptions?: QQBotReplyOptions;
       }) => Promise<unknown>;
       finalizeInboundContext?: (ctx: unknown) => unknown;
       createReplyDispatcher?: (params: unknown) => unknown;

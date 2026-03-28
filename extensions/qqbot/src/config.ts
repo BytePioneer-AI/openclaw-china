@@ -52,6 +52,7 @@ const QQBotAccountSchema = z.object({
   enabled: z.boolean().optional(),
   appId: optionalCoercedString,
   clientSecret: optionalCoercedString,
+  streaming: z.boolean().optional().default(false),
   displayAliases: displayAliasesSchema,
   asr: z
     .object({
@@ -165,6 +166,10 @@ export function resolveQQBotTypingInputSeconds(
   config: QQBotAccountConfig | undefined
 ): number {
   return config?.typingInputSeconds ?? DEFAULT_QQBOT_TYPING_INPUT_SECONDS;
+}
+
+export function resolveQQBotStreaming(config: QQBotAccountConfig | undefined): boolean {
+  return config?.streaming === true;
 }
 
 export function resolveInboundMediaTempDir(): string {

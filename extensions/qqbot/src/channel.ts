@@ -48,6 +48,7 @@ function resolveQQBotAccount(params: {
     enabled,
     configured,
     appId: credentials?.appId,
+    streaming: merged.streaming === true,
     markdownSupport: merged.markdownSupport ?? true,
     c2cMarkdownDeliveryMode: merged.c2cMarkdownDeliveryMode ?? "proactive-table-only",
     c2cMarkdownChunkStrategy: merged.c2cMarkdownChunkStrategy ?? "markdown-block",
@@ -137,6 +138,7 @@ export const qqbotPlugin = {
         defaultAccount: { type: "string" },
         appId: { type: ["string", "number"] },
         clientSecret: { type: "string" },
+        streaming: { type: "boolean" },
         displayAliases: {
           type: "object",
           additionalProperties: { type: "string" },
@@ -191,6 +193,7 @@ export const qqbotPlugin = {
               enabled: { type: "boolean" },
               appId: { type: ["string", "number"] },
               clientSecret: { type: "string" },
+              streaming: { type: "boolean" },
               displayAliases: {
                 type: "object",
                 additionalProperties: { type: "string" },
