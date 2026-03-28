@@ -125,6 +125,7 @@ openclaw config set channels.qqbot.groupPolicy open
 openclaw config set channels.qqbot.requireMention true
 openclaw config set channels.qqbot.textChunkLimit 1500
 openclaw config set channels.qqbot.replyFinalOnly false
+openclaw config set channels.qqbot.streaming false
 openclaw config set channels.qqbot.c2cMarkdownDeliveryMode proactive-table-only
 openclaw config set channels.qqbot.c2cMarkdownChunkStrategy markdown-block
 
@@ -142,7 +143,12 @@ openclaw config set gateway.http.endpoints.chatCompletions.enabled true
 openclaw config set channels.qqbot.longTaskNoticeDelayMs 5000
 ```
 
-如果你只是想先把 QQ 机器人跑起来，前 3 行基本就够了，后面这些配置大多数场景保持默认即可。
+如果你只是想先把 QQ 机器人跑起来，前 3 行基本就够了，后面这些配置大多数场景保持默认即可。  
+如果你想在 `C2C` 私聊里启用 QQ 原生单消息流式更新，再额外打开：
+
+```bash
+openclaw config set channels.qqbot.streaming true
+```
 
 ### 2. 配置项说明
 
@@ -150,7 +156,7 @@ openclaw config set channels.qqbot.longTaskNoticeDelayMs 5000
 
 - 必填：`enabled`、`appId`、`clientSecret`
 - 通常保持默认即可：`dmPolicy`、`groupPolicy`、`requireMention`、`textChunkLimit`
-- 需要调交互体验时再看：`replyFinalOnly`、`c2cMarkdownDeliveryMode`、`c2cMarkdownChunkStrategy`、`c2cMarkdownSafeChunkByteLimit`、`typingHeartbeatMode`、`typingHeartbeatIntervalMs`、`typingInputSeconds`、`autoSendLocalPathMedia`、`longTaskNoticeDelayMs`
+- 需要调交互体验时再看：`replyFinalOnly`、`streaming`、`c2cMarkdownDeliveryMode`、`c2cMarkdownChunkStrategy`、`c2cMarkdownSafeChunkByteLimit`、`typingHeartbeatMode`、`typingHeartbeatIntervalMs`、`typingInputSeconds`、`autoSendLocalPathMedia`、`longTaskNoticeDelayMs`
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
@@ -165,6 +171,7 @@ openclaw config set channels.qqbot.longTaskNoticeDelayMs 5000
 | groupAllowFrom | string[] | [] | 群聊白名单；只有在 `groupPolicy=allowlist` 时才需要配 |
 | textChunkLimit | number | 1500 | 单条消息允许的最大文本长度；超出后会自动拆成多条 |
 | replyFinalOnly | boolean | false | 是否只发最终答案。`false` 时，QQ 私聊配合 `/verbose on` 会把 assistant 过渡说明和 tool 日志按真实顺序实时分条回发；`true` 时不发普通中间文本，但图片、语音这类媒体结果仍可正常发送 |
+| streaming | boolean | false | 是否开启 QQ 平台原生 `stream_messages` 流式回复。只对 `C2C` 私聊生效；开启后 AI 正文会尽量用单条消息实时更新，tool / progress 仍按普通消息继续回发 |
 | c2cMarkdownDeliveryMode | string | "proactive-table-only" | QQ 私聊里 Markdown 用什么方式发。默认只在“带表格”时切到更稳的方式；如果格式老是乱，可以改成 `proactive-all` |
 | c2cMarkdownChunkStrategy | string | "markdown-block" | QQ 私聊长 Markdown 的切分策略。默认优先按标题、表格、引用、分隔线、代码块等安全边界切分；长表格会尽量按完整行贪心打包，续块自动补表头；如果上游流式把同一行拆碎，也会先在本地合并后再统一发送。如需回退旧行为可改成 `length` |
 | c2cMarkdownSafeChunkByteLimit | number | 自动 | QQ 私聊结构化 Markdown 的保守分片上限，单位字节。默认自动模式当前最多控制在约 `1200` bytes，并会对宽表额外留一点余量；如果你的长表格仍被平台二次截断，可以手动调小，比如 `1000` 或 `900`；如果你更想减少消息条数，也可以试 `1300` 或 `1350` |
@@ -176,6 +183,9 @@ openclaw config set channels.qqbot.longTaskNoticeDelayMs 5000
 
 补充说明：
 
+- `streaming=true` 只对 QQ 私聊 / `C2C` 生效，群聊和频道不会启用
+- 如果回复命中结构化 Markdown 安全传输、包含媒体 URL / 本地媒体路径，或你设置了 `replyFinalOnly=true`，插件会自动继续走原有普通发送链路
+- 如果当前 OpenClaw runtime 没有触发 `onPartialReply`，或 QQ 流式接口暂时不可用，插件也会自动降级为普通消息发送
 - QQ 私聊现在会尽量续发 QQ 平台提供的“对方正在输入中”指示，减少长思考时完全没反馈的情况
 - `typingHeartbeatMode=idle` 是默认值，更接近“有空档才提示还在处理”
 - 如果你更想尽量让 `对方正在输入中` 一直存在，可以改成 `typingHeartbeatMode=always`
@@ -265,28 +275,40 @@ openclaw config set channels.qqbot.c2cMarkdownSafeChunkByteLimit 1000
 - 如果你需要对单个账号单独覆盖，也可以设置 `channels.qqbot.accounts.<accountId>.c2cMarkdownChunkStrategy`
 - 如果你需要对单个账号单独覆盖，也可以设置 `channels.qqbot.accounts.<accountId>.c2cMarkdownSafeChunkByteLimit`
 
-### 3.2 私聊实时回发语义
+### 3.2 私聊流式回复与实时回发语义
 
-- 默认 `replyFinalOnly=false` 时，QQ 私聊里的 assistant 过渡说明和 tool/verbose 日志都会实时发出，并按真实生成顺序交错出现
+- `streaming=true` 且满足条件时，QQ 私聊里的 AI 正文会优先走 QQ 原生 `stream_messages`，以单条消息实时更新，体验更接近打字机效果
+- 这项原生流式只覆盖 `C2C` 私聊，并且默认关闭；群聊、频道、`replyFinalOnly=true`、结构化 Markdown 安全传输、媒体回复仍走原有普通发送链路
+- 默认 `replyFinalOnly=false` 时，QQ 私聊里的 tool/verbose 日志仍会继续按普通消息实时发出，并按真实生成顺序与 assistant 正文自然交错
 - 你应该看到“说明 -> 日志 -> 说明 -> 日志”这类自然交错，而不是所有日志先发完、最后再补说明
 - 如果你把 `replyFinalOnly=true` 打开，普通中间文本就不发了，只保留最终答案；媒体结果不受影响
+- 也就是说，`streaming` 负责“AI 正文单条消息实时更新”，`/verbose on` 负责“工具过程消息继续可见”
+- 如果流式接口启动失败，插件会自动降级到原有普通文本发送，不需要你手动切换配置
 - 这套实时回发语义当前只覆盖 QQ 私聊/C2C，群聊和频道仍保持现有行为
 - QQ 私聊还会按 `typingHeartbeatMode` 续发 QQ 平台提供的“对方正在输入中”；如果客户端没有一直显示 loading 气泡，优先通过较低的 `longTaskNoticeDelayMs` 补足可见消息
 - 如果当前任务卡住或你不想再等，可以在 QQ 私聊里直接发送 `停止` 或 `/stop`；这类中断命令会优先执行，并清掉同一会话里还没处理到的排队消息
 
-### 3.3 验证 `/verbose on` 实时输出
+### 3.3 验证流式与 `/verbose on` 实时输出
 
 建议在升级后做一次快速自检：
 
-1. 在 QQ 私聊里发送 `/verbose on`
-2. 再发送一个会触发工具调用、长任务或文件处理的请求
-3. 观察回包是否符合预期
+1. 先开启流式：
+
+```bash
+openclaw config set channels.qqbot.streaming true
+```
+
+2. 重启 OpenClaw 或重新加载配置
+3. 在 QQ 私聊里发送 `/verbose on`
+4. 再发送一个会触发工具调用、长任务或文件处理的请求
+5. 观察回包是否符合预期
 
 预期结果：
 
-- `replyFinalOnly=false`：assistant 过渡说明、verbose/tool 日志都会按处理过程逐条回发，顺序和实际生成顺序一致
-- 你会看到说明消息和工具日志自然交错，而不是“工具日志先刷完，说明类消息最后补发”
-- 最终答复仍会单独发送，不会把前面的日志重新合并
+- `streaming=true` 且命中 C2C 纯文本场景时：AI 正文会优先在同一条消息里持续变长更新
+- `replyFinalOnly=false`：verbose/tool 日志会继续按处理过程逐条回发，顺序和实际生成顺序一致
+- 你会看到“单条正文更新 + 工具日志单独回发”的组合，而不是所有日志先刷完、说明类消息最后补发
+- 如果这次回复命中了表格 Markdown、安全切分或媒体发送链路，AI 正文可能不会走原生流式，而是继续按旧的普通发送策略回发，这是预期行为
 - `replyFinalOnly=true`：非 final 纯文本日志不会单独发送，但媒体类工具结果仍可投递
 
 ### 3.4 中断当前任务
@@ -325,6 +347,7 @@ openclaw config set channels.qqbot.c2cMarkdownSafeChunkByteLimit 1000
           "name": "主机器人",
           "appId": "1234567890",
           "clientSecret": "secret-1",
+          "streaming": true,
           "displayAliases": {
             "user:u-alice": "Alice"
           },
@@ -386,7 +409,7 @@ openclaw daemon start
 - 支持文本消息、图片、语音和部分文件能力；其中私聊能力比群聊更完整
 - QQ 官方接口对媒体能力本身有限制，尤其是群聊和频道，所以有些文件类型会自动降级成“文本提示 + 链接/路径”
 - 频道消息暂不支持直接发媒体，会退回成文本 + URL
-- QQ 本身不支持真正的平台级 token 流式输出；但在私聊里可以通过多条消息的方式，把 assistant 过渡说明和工具过程实时交错发出来
+- `qqbot` 已支持 QQ 平台原生 `stream_messages` 流式输出，但只覆盖 `C2C` 私聊，且默认关闭；不适合流式的场景会自动回退到原有普通发送链路
 - 私聊支持识别“引用上一条消息”，引用内容默认从 `~/.openclaw/qqbot/data/ref-index.jsonl` 恢复
 - 定时提醒直接走 OpenClaw 自带 cron，不需要额外接别的服务
 - 插件会自动记录通过策略校验的已知用户/群，方便后面主动发送时直接复用
