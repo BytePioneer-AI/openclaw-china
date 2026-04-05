@@ -16,7 +16,7 @@ import type { ResolvedWecomAppAccount, WecomAppInboundMessage } from "./types.js
 import type { PluginConfig } from "./config.js";
 import type { WecomAppRuntimeEnv } from "./monitor.js";
 import { verifyWecomAppSignature, decryptWecomAppEncrypted } from "./crypto.js";
-import { parseWecomAppPlainMessage, parseXmlBody } from "./monitor.js";
+import { parseWecomAppPlainMessage, parseXmlBody, splitMessageByBytes } from "./monitor.js";
 import { dispatchWecomAppMessage } from "./bot.js";
 import { tryGetWecomAppRuntime } from "./runtime.js";
 import { sendWecomAppMessage, stripMarkdown } from "./api.js";
@@ -616,21 +616,27 @@ export async function startWecomAppWsRelayClient(opts: {
             if (!responseText.trim()) return;
             setStatus?.({ lastOutboundAt: Date.now() });
 
-            // Send response via relay webhook
-            await sendRelayWebhookResponse({
-              webhookUrl,
-              sessionId,
-              userId,
-              payload: {
-                type: "response",
-                message_id: msgid ?? "",
-                platform: "wecom",
-                channel_id: senderId,
-                text: stripMarkdown(responseText),
-              },
-              logger,
-              insecure,
-            });
+            // Split long responses: enterprise wechat limits each message to 2048 bytes.
+            // The relay webhook forwards each payload as a separate wecom message, so we
+            // must chunk here rather than sending the full text in one payload.
+            const chunks = splitMessageByBytes(stripMarkdown(responseText), 2048);
+            for (const chunk of chunks) {
+              if (!chunk.trim()) continue;
+              await sendRelayWebhookResponse({
+                webhookUrl,
+                sessionId,
+                userId,
+                payload: {
+                  type: "response",
+                  message_id: msgid ?? "",
+                  platform: "wecom",
+                  channel_id: senderId,
+                  text: chunk,
+                },
+                logger,
+                insecure,
+              });
+            }
           })
           .catch((err) => {
             logger.error(`dispatch failed: ${String(err)}`);

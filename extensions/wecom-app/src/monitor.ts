@@ -95,7 +95,7 @@ function truncateUtf8Bytes(text: string, maxBytes: number): string {
  * @param maxBytes 最大字节数（默认 2048）
  * @returns 分割后的文本数组
  */
-function splitMessageByBytes(text: string, maxBytes = 2048): string[] {
+export function splitMessageByBytes(text: string, maxBytes = 2048): string[] {
   const result: string[] = [];
   let current = "";
   let currentBytes = 0;
