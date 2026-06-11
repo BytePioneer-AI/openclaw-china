@@ -175,7 +175,82 @@ ffmpeg -i in.wav -ar 8000 -ac 1 -c:a amr_nb out.amr
 
 ---
 
-## 7) MCP OCR（识别图片文字）
+## 7) Block Streaming：显示中间 Assistant Text（流式中间块）
+
+### 7.1 默认行为：只显示最终结果
+默认情况下（不配置本节参数），wecom-app **只会在 Agent 完成后一次性推送最终回复**。  
+即使模型在生成过程中产生了多段“中间文本”，用户也看不到这些中间块。
+
+原因：
+- `blockStreamingDefault` 默认未开启或走框架默认策略；
+- 即使开启 block streaming，若 `blockStreamingBreak` 与模型事件节奏不匹配、chunk/coalesce 阈值偏大，也可能表现为“只看到最终一条”。
+
+### 7.2 开启中间块显示
+若希望企微**逐步展示**正在生成的中间内容（一条一条实时显示），需要在 `openclaw.json` 的 `agents.defaults` 下配置：
+
+```jsonc
+{
+  "agents": {
+    "defaults": {
+      "blockStreamingDefault": "on",
+      "blockStreamingBreak": "message_end",
+      "blockStreamingChunk": {
+        "minChars": 80,
+        "maxChars": 800,
+        "breakPreference": "newline"
+      },
+      "blockStreamingCoalesce": {
+        "minChars": 40,
+        "maxChars": 800,
+        "idleMs": 1000
+      }
+    }
+  }
+}
+```
+
+#### 参数说明
+
+| 参数 | 含义 | 默认值 |
+|---|---|---|
+| `blockStreamingDefault` | 是否启用 block 流式输出 | `"off"` |
+| `blockStreamingBreak` | 刷新时机：`"text_end"` 每段文本结束刷一次；`"message_end"` 整条消息结束刷一次 | `"text_end"` |
+| `blockStreamingChunk.minChars` | 单个候选块最小字符数（不到这个长度倾向继续缓冲） | `800` |
+| `blockStreamingChunk.maxChars` | 单个候选块最大字符数（超过强制切开） | `1200` |
+| `blockStreamingChunk.breakPreference` | 切分偏好：`paragraph` / `newline` / `sentence` | `"paragraph"` |
+| `blockStreamingCoalesce.minChars` | 合并器最小缓冲字符数 | `800` |
+| `blockStreamingCoalesce.maxChars` | 合并后最大字符数（受 chunk.maxChars 约束） | `1200` |
+| `blockStreamingCoalesce.idleMs` | 合并器空闲等待时间(ms)，超时无新内容则刷出 | `1000` |
+
+#### 推荐配置（稳定优先）
+```jsonc
+{
+  "agents": {
+    "defaults": {
+      "blockStreamingDefault": "on",
+      "blockStreamingBreak": "message_end",
+      "blockStreamingChunk": { "minChars": 80, "maxChars": 800, "breakPreference": "newline" },
+      "blockStreamingCoalesce": { "minChars": 40, "maxChars": 800, "idleMs": 1000 }
+    }
+  }
+}
+```
+
+#### 更灵敏配置（更多中间块，但更碎）
+把阈值调小、idle 调低即可（适合调试/体验）：
+
+- `blockStreamingChunk.minChars`: `40~80`
+- `blockStreamingCoalesce.idleMs`: `150~300`
+
+### 7.3 常见现象
+
+- **完全看不到中间块**：先确认 `blockStreamingDefault: "on"` 且服务已重启；其次检查 `canSendActive`（需配齐 corpId/corpSecret/agentId）。
+- **消息乱序（后发先至）**：当前插件已实现按 target 全局串行发送队列，同一用户的消息应有序；若仍乱序，通常是网络侧抖动或企业微信客户端渲染顺序问题。
+- **只收到最后一条**：可能是 `coalesce.idleMs` 偏大 + 模型输出很快（所有内容在一个 message_end 内合并发出）；可降低 idleMs 或改 `breakPreference: "text_end"` 提高刷新频率。
+
+---
+
+## 8) MCP OCR（识别图片文字）
 
 当用户说“记得调用 mcp 识别图片”，用 `mcporter` 调用：
 - `zai-mcp-server.extract_text_from_screenshot(image_source: <saved-path>, prompt: <说明>)`

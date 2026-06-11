@@ -3,89 +3,559 @@
   "name": "WeCom App",
   "description": "企业微信自建应用消息渠道插件（支持主动推送）",
   "version": "0.1.0",
-  "channels": ["wecom-app"],
+  "channels": [
+    "wecom-app"
+  ],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "enabled": { "type": "boolean" },
-      "name": { "type": "string" },
-      "corpId": { "type": "string" },
-      "corpSecret": { "type": "string" },
-      "agentId": { "type": "number" },
-      "apiBaseUrl": { "type": "string" },
-      "webhookPath": { "type": "string" },
-      "token": { "type": "string" },
-      "encodingAESKey": { "type": "string" },
-      "receiveId": { "type": "string" },
+      "enabled": {
+        "type": "boolean"
+      },
+      "name": {
+        "type": "string"
+      },
+      "corpId": {
+        "type": "string"
+      },
+      "corpSecret": {
+        "type": "string"
+      },
+      "agentId": {
+        "type": "number"
+      },
+      "apiBaseUrl": {
+        "type": "string"
+      },
+      "webhookPath": {
+        "type": "string"
+      },
+      "token": {
+        "type": "string"
+      },
+      "encodingAESKey": {
+        "type": "string"
+      },
+      "receiveId": {
+        "type": "string"
+      },
       "asr": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "enabled": { "type": "boolean" },
-          "appId": { "type": "string" },
-          "secretId": { "type": "string" },
-          "secretKey": { "type": "string" },
-          "engineType": { "type": "string" },
-          "timeoutMs": { "type": "number" }
+          "enabled": {
+            "type": "boolean"
+          },
+          "appId": {
+            "type": "string"
+          },
+          "secretId": {
+            "type": "string"
+          },
+          "secretKey": {
+            "type": "string"
+          },
+          "engineType": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "number"
+          }
         }
       },
-      "welcomeText": { "type": "string" },
-      "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"] },
-      "allowFrom": { "type": "array", "items": { "type": "string" } },
-      "groupPolicy": { "type": "string", "enum": ["open", "allowlist", "disabled"] },
-      "groupAllowFrom": { "type": "array", "items": { "type": "string" } },
-      "requireMention": { "type": "boolean" },
-      "defaultAccount": { "type": "string" },
+      "welcomeText": {
+        "type": "string"
+      },
+      "dmPolicy": {
+        "type": "string",
+        "enum": [
+          "open",
+          "pairing",
+          "allowlist",
+          "disabled"
+        ]
+      },
+      "allowFrom": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "groupPolicy": {
+        "type": "string",
+        "enum": [
+          "open",
+          "allowlist",
+          "disabled"
+        ]
+      },
+      "groupAllowFrom": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "requireMention": {
+        "type": "boolean"
+      },
+      "defaultAccount": {
+        "type": "string"
+      },
       "accounts": {
         "type": "object",
         "additionalProperties": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "name": { "type": "string" },
-            "enabled": { "type": "boolean" },
-            "corpId": { "type": "string" },
-            "corpSecret": { "type": "string" },
-            "agentId": { "type": "number" },
-            "apiBaseUrl": { "type": "string" },
-            "webhookPath": { "type": "string" },
-            "token": { "type": "string" },
-            "encodingAESKey": { "type": "string" },
-            "receiveId": { "type": "string" },
+            "name": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "corpId": {
+              "type": "string"
+            },
+            "corpSecret": {
+              "type": "string"
+            },
+            "agentId": {
+              "type": "number"
+            },
+            "apiBaseUrl": {
+              "type": "string"
+            },
+            "webhookPath": {
+              "type": "string"
+            },
+            "token": {
+              "type": "string"
+            },
+            "encodingAESKey": {
+              "type": "string"
+            },
+            "receiveId": {
+              "type": "string"
+            },
             "asr": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "enabled": { "type": "boolean" },
-                "appId": { "type": "string" },
-                "secretId": { "type": "string" },
-                "secretKey": { "type": "string" },
-                "engineType": { "type": "string" },
-                "timeoutMs": { "type": "number" }
+                "enabled": {
+                  "type": "boolean"
+                },
+                "appId": {
+                  "type": "string"
+                },
+                "secretId": {
+                  "type": "string"
+                },
+                "secretKey": {
+                  "type": "string"
+                },
+                "engineType": {
+                  "type": "string"
+                },
+                "timeoutMs": {
+                  "type": "number"
+                }
               }
             },
-            "welcomeText": { "type": "string" },
-            "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist", "disabled"] },
-            "allowFrom": { "type": "array", "items": { "type": "string" } },
-            "groupPolicy": { "type": "string", "enum": ["open", "allowlist", "disabled"] },
-            "groupAllowFrom": { "type": "array", "items": { "type": "string" } },
-            "requireMention": { "type": "boolean" }
+            "welcomeText": {
+              "type": "string"
+            },
+            "dmPolicy": {
+              "type": "string",
+              "enum": [
+                "open",
+                "pairing",
+                "allowlist",
+                "disabled"
+              ]
+            },
+            "allowFrom": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "groupPolicy": {
+              "type": "string",
+              "enum": [
+                "open",
+                "allowlist",
+                "disabled"
+              ]
+            },
+            "groupAllowFrom": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "requireMention": {
+              "type": "boolean"
+            }
           }
         }
       }
     }
   },
   "uiHints": {
-    "corpId": { "label": "企业ID (CorpID)" },
-    "corpSecret": { "label": "应用Secret", "sensitive": true },
-    "asr.appId": { "label": "ASR App ID" },
-    "asr.secretId": { "label": "ASR Secret ID", "sensitive": true },
-    "asr.secretKey": { "label": "ASR Secret Key", "sensitive": true },
-    "agentId": { "label": "应用AgentId" },
-    "apiBaseUrl": { "label": "企微 API 基础地址（可选代理）" },
-    "token": { "label": "回调Token", "sensitive": true },
-    "encodingAESKey": { "label": "回调EncodingAESKey", "sensitive": true },
-    "webhookPath": { "label": "Webhook Path" }
+    "corpId": {
+      "label": "企业ID (CorpID)"
+    },
+    "corpSecret": {
+      "label": "应用Secret",
+      "sensitive": true
+    },
+    "asr.appId": {
+      "label": "ASR App ID"
+    },
+    "asr.secretId": {
+      "label": "ASR Secret ID",
+      "sensitive": true
+    },
+    "asr.secretKey": {
+      "label": "ASR Secret Key",
+      "sensitive": true
+    },
+    "agentId": {
+      "label": "应用AgentId"
+    },
+    "apiBaseUrl": {
+      "label": "企微 API 基础地址（可选代理）"
+    },
+    "token": {
+      "label": "回调Token",
+      "sensitive": true
+    },
+    "encodingAESKey": {
+      "label": "回调EncodingAESKey",
+      "sensitive": true
+    },
+    "webhookPath": {
+      "label": "Webhook Path"
+    }
+  },
+  "channelConfigs": {
+    "wecom-app": {
+      "label": "WeCom App",
+      "description": "企业微信自建应用通道 — 使用企微 API 回调接收消息，支持主动推送文本/图片/Markdown/语音/文件消息及语音识别（ASR）。",
+      "schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "启用或禁用该通道。"
+          },
+          "name": {
+            "type": "string",
+            "description": "通道显示名称。"
+          },
+          "webhookPath": {
+            "type": "string",
+            "description": "企业微信回调 URL 路径，用于接收来自企业微信服务器的消息。默认 /wecom-app。"
+          },
+          "token": {
+            "type": "string",
+            "description": "企业微信应用的 Token（回调配置用），用于验证消息来源。"
+          },
+          "encodingAESKey": {
+            "type": "string",
+            "description": "企业微信应用的 EncodingAESKey，用于加解密回调消息。"
+          },
+          "corpId": {
+            "type": "string",
+            "description": "企业微信的企业 ID（CorpId）。"
+          },
+          "corpSecret": {
+            "type": "string",
+            "description": "企业微信自建应用的 CorpSecret，用于获取 access_token。"
+          },
+          "agentId": {
+            "type": "number",
+            "description": "企业微信自建应用的 AgentId。"
+          },
+          "apiBaseUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "可选的企业微信 API 基础 URL，用于代理/中转场景。默认 https://qyapi.weixin.qq.com。"
+          },
+          "receiveId": {
+            "type": "string",
+            "description": "回调 ReceiveId（在回调 URL 验证时确定）。"
+          },
+          "asr": {
+            "type": "object",
+            "description": "语音识别（ASR）配置，自动将语音消息转文字。",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "启用语音识别。"
+              },
+              "appId": {
+                "type": "number",
+                "description": "腾讯云 ASR 应用的 AppId。"
+              },
+              "secretId": {
+                "type": "string",
+                "description": "腾讯云 API 密钥 SecretId。"
+              },
+              "secretKey": {
+                "type": "string",
+                "description": "腾讯云 API 密钥 SecretKey。"
+              },
+              "engineType": {
+                "type": "string",
+                "description": "ASR 引擎类型，如 16k_zh。"
+              },
+              "timeoutMs": {
+                "type": "number",
+                "description": "ASR 请求超时时间（毫秒）。"
+              }
+            },
+            "additionalProperties": false
+          },
+          "welcomeText": {
+            "type": "string",
+            "description": "用户首次对话时发送的欢迎消息。"
+          },
+          "dmPolicy": {
+            "type": "string",
+            "enum": [
+              "open",
+              "pairing",
+              "allowlist",
+              "disabled"
+            ],
+            "default": "open",
+            "description": "直接消息访问控制。"
+          },
+          "allowFrom": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "允许发送消息的用户白名单（用户 ID）。为空则允许所有。"
+          },
+          "groupPolicy": {
+            "type": "string",
+            "enum": [
+              "open",
+              "allowlist",
+              "disabled"
+            ],
+            "default": "disabled",
+            "description": "群聊策略。"
+          },
+          "groupAllowFrom": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "允许群聊白名单。"
+          },
+          "requireMention": {
+            "type": "boolean",
+            "description": "是否仅在 @ 提及时才回复。"
+          },
+          "defaultAccount": {
+            "type": "string",
+            "description": "默认使用的账户名（多账户时）。"
+          },
+          "accounts": {
+            "type": "object",
+            "description": "多账户配置。",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "corpId": {
+                  "type": "string"
+                },
+                "corpSecret": {
+                  "type": "string"
+                },
+                "agentId": {
+                  "type": "number"
+                },
+                "apiBaseUrl": {
+                  "type": "string"
+                },
+                "webhookPath": {
+                  "type": "string"
+                },
+                "token": {
+                  "type": "string"
+                },
+                "encodingAESKey": {
+                  "type": "string"
+                },
+                "receiveId": {
+                  "type": "string"
+                },
+                "asr": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "appId": {
+                      "type": "string"
+                    },
+                    "secretId": {
+                      "type": "string"
+                    },
+                    "secretKey": {
+                      "type": "string"
+                    },
+                    "engineType": {
+                      "type": "string"
+                    },
+                    "timeoutMs": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "welcomeText": {
+                  "type": "string"
+                },
+                "dmPolicy": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "pairing",
+                    "allowlist",
+                    "disabled"
+                  ]
+                },
+                "allowFrom": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "groupPolicy": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "allowlist",
+                    "disabled"
+                  ]
+                },
+                "groupAllowFrom": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requireMention": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "inboundMedia": {
+            "type": "object",
+            "description": "入站媒体文件接收配置。",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "maxBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "keepDays": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      },
+      "uiHints": {
+        "corpId": {
+          "label": "企业 ID（CorpId）",
+          "help": "企业微信管理后台 -> 我的企业 -> 企业信息 -> 企业ID。"
+        },
+        "corpSecret": {
+          "label": "应用 Secret（CorpSecret）",
+          "sensitive": true
+        },
+        "agentId": {
+          "label": "应用 AgentId"
+        },
+        "token": {
+          "label": "回调 Token",
+          "sensitive": true
+        },
+        "encodingAESKey": {
+          "label": "回调 EncodingAESKey",
+          "sensitive": true
+        },
+        "webhookPath": {
+          "label": "回调 URL 路径",
+          "placeholder": "/wecom-app"
+        },
+        "apiBaseUrl": {
+          "label": "API 基础地址（可选代理）",
+          "placeholder": "https://qyapi.weixin.qq.com"
+        },
+        "receiveId": {
+          "label": "回调 ReceiveId"
+        },
+        "asr.appId": {
+          "label": "ASR 应用 AppId"
+        },
+        "asr.secretId": {
+          "label": "ASR SecretId",
+          "sensitive": true
+        },
+        "asr.secretKey": {
+          "label": "ASR SecretKey",
+          "sensitive": true
+        },
+        "asr.enabled": {
+          "label": "启用语音识别"
+        },
+        "welcomeText": {
+          "label": "欢迎消息"
+        },
+        "dmPolicy": {
+          "label": "单聊策略"
+        },
+        "groupPolicy": {
+          "label": "群聊策略"
+        },
+        "inboundMedia.enabled": {
+          "label": "启用媒体文件接收"
+        },
+        "inboundMedia.maxBytes": {
+          "label": "媒体文件大小限制（字节）"
+        },
+        "inboundMedia.keepDays": {
+          "label": "媒体文件保留天数"
+        }
+      }
+    }
   }
 }
