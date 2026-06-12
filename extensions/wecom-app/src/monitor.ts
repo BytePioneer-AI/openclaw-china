@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 
 import { createLogger, type Logger } from "@openclaw-china/shared";
 
-import type { ResolvedWecomAppAccount, WecomAppInboundMessage } from "./types.js";
+import type { ResolvedWecomAppAccount, WecomAppInboundMessage, WecomAppSendTarget } from "./types.js";
 import type { PluginConfig } from "./config.js";
 import {
   decryptWecomAppEncrypted,
@@ -52,6 +52,7 @@ type StreamState = {
 const webhookTargets = new Map<string, WecomAppWebhookTarget[]>();
 const streams = new Map<string, StreamState>();
 const msgidToStreamId = new Map<string, string>();
+const outboundTargetQueues = new Map<string, Promise<void>>();
 
 const STREAM_TTL_MS = 10 * 60 * 1000;
 /** 增大到 500KB (用户偏好) */
@@ -126,6 +127,43 @@ function splitActiveTextChunks(text: string): string[] {
   const formatted = stripMarkdown(text).trim();
   if (!formatted) return [];
   return splitMessageByBytes(formatted, 2048).filter((chunk) => chunk.trim());
+}
+
+function resolveActiveTargetQueueKey(
+  account: ResolvedWecomAppAccount,
+  target?: WecomAppSendTarget,
+): string | undefined {
+  if (!target) return undefined;
+  const chatid = typeof target.chatid === "string" ? target.chatid.trim() : "";
+  if (chatid) {
+    return `${account.accountId}:chat:${chatid}`;
+  }
+  const userId = typeof target.userId === "string" ? target.userId.trim() : "";
+  if (userId) {
+    return `${account.accountId}:user:${userId}`;
+  }
+  return undefined;
+}
+
+function enqueueActiveTargetSend(
+  queueKey: string | undefined,
+  send: () => Promise<void>,
+): Promise<void> {
+  if (!queueKey) {
+    return send();
+  }
+  const previous = outboundTargetQueues.get(queueKey) ?? Promise.resolve();
+  const run = previous
+    .catch(() => undefined)
+    .then(send);
+  const nextTail = run.catch(() => undefined);
+  outboundTargetQueues.set(queueKey, nextTail);
+  void nextTail.finally(() => {
+    if (outboundTargetQueues.get(queueKey) === nextTail) {
+      outboundTargetQueues.delete(queueKey);
+    }
+  });
+  return run;
 }
 
 function jsonOk(res: ServerResponse, body: unknown): void {
@@ -714,6 +752,7 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
   const senderId = msg.from?.userid?.trim() ?? (msg as { FromUserName?: string }).FromUserName?.trim();
   const chatid = msg.chatid?.trim();
   const activeTarget = chatid ? { chatid } : senderId ? { userId: senderId } : undefined;
+  const activeTargetQueueKey = resolveActiveTargetQueueKey(target.account, activeTarget);
 
   if (core) {
     const state = streams.get(streamId);
@@ -740,12 +779,14 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
       ) {
         try {
           const chunks = splitActiveTextChunks(current.content);
-          for (const chunk of chunks) {
-            const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
-            if (!result.ok) {
-              throw new Error(result.errmsg || "unknown wecom-app send failure");
+          await enqueueActiveTargetSend(activeTargetQueueKey, async () => {
+            for (const chunk of chunks) {
+              const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
+              if (!result.ok) {
+                throw new Error(result.errmsg || "unknown wecom-app send failure");
+              }
             }
-          }
+          });
           if (chunks.length > 0) {
             logger.info(`主动发送完成: streamId=${streamId}, 共 ${chunks.length} 段`);
           }
@@ -770,14 +811,16 @@ export async function handleWecomAppWebhookRequest(req: IncomingMessage, res: Se
 
           try {
             const chunks = splitActiveTextChunks(text);
-            for (const chunk of chunks) {
-              const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
-              if (!result.ok) {
-                throw new Error(result.errmsg || "unknown wecom-app send failure");
+            await enqueueActiveTargetSend(activeTargetQueueKey, async () => {
+              for (const chunk of chunks) {
+                const result = await sendWecomAppMessage(target.account, activeTarget, chunk);
+                if (!result.ok) {
+                  throw new Error(result.errmsg || "unknown wecom-app send failure");
+                }
+                activeChunkCount += 1;
+                target.statusSink?.({ lastOutboundAt: Date.now() });
               }
-              activeChunkCount += 1;
-              target.statusSink?.({ lastOutboundAt: Date.now() });
-            }
+            });
           } catch (sendErr) {
             logger.error(`主动分片发送失败: ${String(sendErr)}`);
           }
