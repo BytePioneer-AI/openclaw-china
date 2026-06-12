@@ -12,25 +12,6 @@
 
 OpenClaw China 为 OpenClaw 提供面向中国常用通讯平台的渠道扩展，帮助你把 AI 助手接入钉钉、企业微信、企业微信自建应用、微信客服、微信公众号、QQ 和飞书等渠道。项目聚焦稳定的消息收发、统一的插件接入面，以及尽量低门槛的配置流程。
 
-<table align="center">
-  <tr>
-    <td align="center" width="220">
-      <a href="https://www.atlascloud.ai/console/coding-plan">
-        <img src="doc/images/sponsors/atlas-cloud.svg" alt="Atlas Cloud" width="160" />
-      </a>
-    </td>
-    <td>
-      <strong>推荐</strong>
-      <br />
-      <a href="https://www.atlascloud.ai/zh?utm_source=github&utm_medium=link&utm_campaign=openclaw-china">Atlas Cloud </a>是一个全模态 AI 推理平台，它为开发者提供单一的 AI API，用于访问视频生成、图像生成和 LLM API。无需管理多个供应商集成，只需连接一次，即可统一访问 300 多个精选的跨模态模型。
-      <br />
-      <a href="https://www.atlascloud.ai/console/coding-plan">了解 Atlas Cloud 最新推出的编码方案优惠活动，享受更经济实惠的 API。</a>
-    </td>
-  </tr>
-</table>
-
-
-
 <p>
   文档目录：<a href="#快速开始">快速开始</a> •
   <a href="#总体架构">总体架构</a> •
